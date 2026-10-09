@@ -807,5 +807,30 @@ select tap_lite.is_equal(
 select tap_lite.is_equal((select public from storage.buckets where id = 'complaint-evidence'), false,
   'K7 the evidence bucket is private');
 
+-- ---- L: assignable lecturers (migration 0010) ------------------------------
+select tap_lite.as_user(tap_lite.id('lecMain'));
+select tap_lite.ok((select count(*) from public.list_assignable_lecturers('Target')) = 1,
+  'L1 a main lecturer can list an eligible lecturer by name');
+select tap_lite.rows_are($$select 1 from public.list_assignable_lecturers('Inactive')$$, 0,
+  'L2 deactivated lecturers are not assignable');
+select tap_lite.rows_are($$select 1 from public.list_assignable_lecturers('OptOut')$$, 0,
+  'L3 lecturers who opted out are not assignable');
+select tap_lite.rows_are($$select 1 from public.list_assignable_lecturers('%')$$, 0,
+  'L4 LIKE wildcards are escaped');
+select tap_lite.rows_are($$select 1 from public.list_assignable_lecturers('Student')$$, 0,
+  'L5 students are never listed');
+select tap_lite.as_user(tap_lite.id('lecCS'));
+select tap_lite.throws($$select * from public.list_assignable_lecturers()$$, '42501',
+  'L6 an ordinary lecturer cannot list assignable lecturers');
+select tap_lite.as_user(tap_lite.id('studA'));
+select tap_lite.throws($$select * from public.list_assignable_lecturers()$$, '42501',
+  'L7 a student cannot list assignable lecturers');
+select tap_lite.as_user(tap_lite.id('admin1'));
+select tap_lite.throws($$select * from public.list_assignable_lecturers()$$, '42501',
+  'L8 an administrator cannot list assignable lecturers (routing is a main-lecturer duty)');
+select tap_lite.as_anon();
+select tap_lite.throws($$select * from public.list_assignable_lecturers()$$, '42501',
+  'L9 signed-out visitors cannot list assignable lecturers');
+
 select * from tap_lite.finish();
 rollback;
