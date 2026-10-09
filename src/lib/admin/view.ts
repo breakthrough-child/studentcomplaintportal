@@ -25,7 +25,7 @@ export function pageOf<T>(rows: readonly T[]): { items: T[]; hasMore: boolean } 
 }
 /** Escapes % _ \ so user text is matched literally by ILIKE. Commas/parens are removed for PostgREST or() filters. */
 export function likeTerm(q: string): string {
-  return `%${q.replace(/[\\%_]/g, "\\$&").replace(/[,()]/g, " ")}%`;
+  return `%${q.replace(/[\\%_]/g, "\\$&").replace(/[,()"]/g, " ")}%`;
 }
 export function adminHref(base: string, q: AdminListQuery, patch: Partial<AdminListQuery>): string {
   const m = { ...q, ...patch };
