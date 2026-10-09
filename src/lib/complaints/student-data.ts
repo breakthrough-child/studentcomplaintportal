@@ -6,7 +6,7 @@ import { mapRpcError } from "./rpc-errors";
 import { buildReplyRpcArgs, echoReplyBody, parseReply, type ReplyState } from "./reply";
 import { fieldErrors } from "@/lib/validation/form";
 import {
-  DETAIL_COLUMNS, GENERIC_ERROR, LIST_COLUMNS, MESSAGE_COLUMNS, complaintIdSchema, listRange, parseComplaintDetail,
+  DETAIL_COLUMNS, GENERIC_ERROR, containsPattern, searchColumn, LIST_COLUMNS, MESSAGE_COLUMNS, complaintIdSchema, listRange, parseComplaintDetail,
   parseComplaintList, parseListQuery, parseName, parseThread, shapeList, type DetailResult, type ListResult,
 } from "./student-view";
 
@@ -26,6 +26,8 @@ export async function listMyComplaints(rawQuery: unknown): Promise<ListResult> {
   const { from, to } = listRange(query.page);
   let q = supabase.from("complaints").select(LIST_COLUMNS).eq("student_id", (own.data as { id: string }).id);
   if (query.status) q = q.eq("status", query.status);
+  if (query.categoryId) q = q.eq("category_id", query.categoryId);
+  if (query.q) q = q.ilike(searchColumn(query.q), containsPattern(query.q));
   const { data, error } = await q.order("created_at", { ascending: false }).order("id", { ascending: false }).range(from, to);
   if (error) return { state: "error", message: GENERIC_ERROR };
 

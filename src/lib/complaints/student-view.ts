@@ -2,6 +2,7 @@
 // RLS-bound SELECTs (a student can read only their own complaints). This module validates the
 // query string, validates and minimises what the database returned, and shapes it for display.
 import { z } from "zod";
+import { codePointLength, containsForbiddenText } from "./schema";
 
 export const STUDENT_PAGE_SIZE = 10;
 export const STUDENT_MAX_PAGE = 1000;
@@ -23,6 +24,32 @@ const blankToUndefined = (v: unknown): unknown => {
   return x === null || (typeof x === "string" && x.trim() === "") ? undefined : x;
 };
 
+export const SEARCH_MAX = 100;
+
+/** Free-text search box: collapsed whitespace, no control/bidi characters, at most SEARCH_MAX. */
+export function searchText() {
+  return z
+    .string()
+    .transform((x) => x.replace(/\s+/g, " ").trim())
+    .refine((x) => codePointLength(x) <= SEARCH_MAX && !containsForbiddenText(x, false), "invalid search")
+    .transform((x) => (x === "" ? undefined : x))
+    .optional();
+}
+
+/**
+ * LIKE pattern for a "contains" search. %, _ and \ typed by the user are escaped so they match
+ * literally. The value is passed to PostgREST as a bound filter value (never spliced into an
+ * or()/in() expression), so commas and parentheses are harmless.
+ */
+export function containsPattern(text: string): string {
+  return `%${text.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
+}
+
+/** Which column a search term targets: complaint references look like CMP-2026-000123. */
+export function searchColumn(text: string): "reference_number" | "title" {
+  return /^cmp-/i.test(text) ? "reference_number" : "title";
+}
+
 /** Query-string input for the list page. Unknown keys are ignored (Next adds none, users may). */
 export const listQuerySchema = z.object({
   page: z.preprocess(
@@ -33,13 +60,15 @@ export const listQuerySchema = z.object({
     z.number().int().min(1).max(STUDENT_MAX_PAGE).default(1),
   ),
   status: z.preprocess(blankToUndefined, z.enum(COMPLAINT_STATUSES).optional()),
+  categoryId: z.preprocess(blankToUndefined, z.string().uuid().optional()),
+  q: z.preprocess(blankToUndefined, searchText()),
 });
 export type ListQuery = z.infer<typeof listQuerySchema>;
 
 /** Bad query strings fall back to defaults instead of erroring: the list is the safe default view. */
 export function parseListQuery(raw: unknown): ListQuery {
   const parsed = listQuerySchema.safeParse(raw ?? {});
-  return parsed.success ? parsed.data : { page: 1, status: undefined };
+  return parsed.success ? parsed.data : { page: 1, status: undefined, categoryId: undefined, q: undefined };
 }
 
 export function listRange(page: number): { from: number; to: number } {
@@ -52,13 +81,14 @@ export const complaintIdSchema = z.string().uuid();
 
 const timestamp = z.string().refine((s) => !Number.isNaN(Date.parse(s)), "bad timestamp");
 
-export const LIST_COLUMNS = "id,reference_number,title,status,priority,created_at,last_activity_at" as const;
+export const LIST_COLUMNS = "id,reference_number,title,status,priority,category_id,created_at,last_activity_at" as const;
 const listRowSchema = z.object({
   id: z.string().uuid(),
   reference_number: z.string().min(1),
   title: z.string(),
   status: z.enum(COMPLAINT_STATUSES),
   priority: z.enum(["low", "normal", "high", "urgent"]),
+  category_id: z.string().uuid(),
   created_at: timestamp,
   last_activity_at: timestamp,
 });
@@ -70,6 +100,7 @@ export type ComplaintSummary = {
   readonly status: ComplaintStatus;
   readonly statusLabel: string;
   readonly priority: "low" | "normal" | "high" | "urgent";
+  readonly categoryId: string;
   readonly createdAt: string;
   readonly lastActivityAt: string;
 };
@@ -77,7 +108,7 @@ export type ComplaintSummary = {
 function summarise(r: z.infer<typeof listRowSchema>): ComplaintSummary {
   return {
     id: r.id, reference: r.reference_number, title: r.title, status: r.status, statusLabel: STATUS_LABELS[r.status],
-    priority: r.priority, createdAt: r.created_at, lastActivityAt: r.last_activity_at,
+    priority: r.priority, categoryId: r.category_id, createdAt: r.created_at, lastActivityAt: r.last_activity_at,
   };
 }
 
@@ -151,7 +182,7 @@ export type DetailResult =
   | { readonly state: "error"; readonly message: string };
 
 export function shapeList(rows: readonly ComplaintSummary[], query: ListQuery): ListResult {
-  if (rows.length === 0) return { state: "empty", filtered: query.status !== undefined || query.page > 1 };
+  if (rows.length === 0) return { state: "empty", filtered: query.status !== undefined || query.categoryId !== undefined || query.q !== undefined || query.page > 1 };
   return {
     state: "ok",
     items: rows.slice(0, STUDENT_PAGE_SIZE),

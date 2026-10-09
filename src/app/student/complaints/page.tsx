@@ -2,6 +2,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { listMyComplaints } from "@/lib/complaints/student-data";
+import { loadFormOptions } from "@/lib/complaints/data";
 import { COMPLAINT_STATUSES, STATUS_LABELS, parseListQuery } from "@/lib/complaints/student-view";
 
 export const metadata: Metadata = { title: "My complaints" };
@@ -13,10 +14,14 @@ const date = (iso: string) => new Date(iso).toLocaleDateString("en-GB", { year: 
 export default async function MyComplaintsPage({ searchParams }: { searchParams: SearchParams }) {
   const raw = await searchParams;
   const query = parseListQuery(raw);
-  const result = await listMyComplaints(raw); // enforces: signed in, student, approved; RLS limits rows
+  const [result, options] = await Promise.all([listMyComplaints(raw), loadFormOptions()]); // both enforce: signed in, student, approved; RLS limits rows
+  const categories = options.ok ? options.categories : [];
+  const categoryName = new Map(categories.map((c) => [c.id, c.name]));
   const href = (page: number) => {
     const p = new URLSearchParams();
     if (query.status) p.set("status", query.status);
+    if (query.categoryId) p.set("categoryId", query.categoryId);
+    if (query.q) p.set("q", query.q);
     if (page > 1) p.set("page", String(page));
     const qs = p.toString();
     return `/student/complaints${qs ? `?${qs}` : ""}`;
@@ -29,12 +34,23 @@ export default async function MyComplaintsPage({ searchParams }: { searchParams:
         <Link href="/student/complaints/new" className="rounded-md bg-brand-700 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-800">New complaint</Link>
       </div>
 
-      <form method="get" className="flex items-end gap-2">
+      <form method="get" className="flex flex-wrap items-end gap-2">
+        <label className="text-sm">
+          <span className="block font-medium">Search</span>
+          <input type="search" name="q" defaultValue={query.q ?? ""} maxLength={100} placeholder="Title or reference" className="mt-1 rounded-md border border-slate-300 px-3 py-2" />
+        </label>
         <label className="text-sm">
           <span className="block font-medium">Status</span>
           <select name="status" defaultValue={query.status ?? ""} className="mt-1 rounded-md border border-slate-300 px-3 py-2">
             <option value="">All</option>
             {COMPLAINT_STATUSES.map((s) => <option key={s} value={s}>{STATUS_LABELS[s]}</option>)}
+          </select>
+        </label>
+        <label className="text-sm">
+          <span className="block font-medium">Category</span>
+          <select name="categoryId" defaultValue={query.categoryId ?? ""} className="mt-1 rounded-md border border-slate-300 px-3 py-2">
+            <option value="">All</option>
+            {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
           </select>
         </label>
         <button type="submit" className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-semibold hover:bg-slate-50">Filter</button>
@@ -59,7 +75,7 @@ export default async function MyComplaintsPage({ searchParams }: { searchParams:
                     <span className="font-medium">{c.title}</span>
                     <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-semibold">{c.statusLabel}</span>
                   </span>
-                  <span className="mt-1 block text-sm text-slate-600">{c.reference} · Submitted {date(c.createdAt)} · Last activity {date(c.lastActivityAt)}</span>
+                  <span className="mt-1 block text-sm text-slate-600">{c.reference} · {categoryName.get(c.categoryId) ?? "Category"} · Submitted {date(c.createdAt)} · Last activity {date(c.lastActivityAt)}</span>
                 </Link>
               </li>
             ))}

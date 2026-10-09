@@ -45,7 +45,8 @@ export async function requireApprovedStudent(): Promise<Profile> {
   const profile = await requireRole(["student"]);
   const supabase = await createClient();
   const { data, error } = await supabase.rpc("is_approved_student");
-  if (error || data !== true) redirect("/unauthorized?reason=approval");
+  // The dashboard explains the student's state (not linked, pending, rejected, suspended).
+  if (error || data !== true) redirect("/student/dashboard");
   return profile;
 }
 

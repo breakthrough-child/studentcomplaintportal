@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
+  containsPattern, searchColumn,
   COMPLAINT_STATUSES, STATUS_LABELS, STUDENT_PAGE_SIZE, complaintIdSchema, listRange, parseComplaintDetail,
   parseComplaintList, parseListQuery, parseThread, shapeList, DETAIL_COLUMNS, LIST_COLUMNS, MESSAGE_COLUMNS,
 } from "../../src/lib/complaints/student-view";
@@ -11,7 +12,7 @@ const ME = "22222222-2222-4222-8222-222222222222";
 const STAFF = "33333333-3333-4333-8333-333333333333";
 const row = {
   id: ID, reference_number: "SCMS-2026-000001", title: "T", status: "submitted", priority: "normal",
-  created_at: "2026-10-01T10:00:00Z", last_activity_at: "2026-10-01T10:00:00Z",
+  category_id: ID, created_at: "2026-10-01T10:00:00Z", last_activity_at: "2026-10-01T10:00:00Z",
 };
 const detail = { ...row, description: "d", is_sensitive: false, resolved_at: null, closed_at: null, category_id: ID, target_lecturer_profile_id: STAFF };
 
@@ -42,7 +43,7 @@ test("selected columns exist in the complaints / messages tables", () => {
   const table = (name: string) => sql.slice(sql.indexOf(`create table public.${name} (`), sql.indexOf(");", sql.indexOf(`create table public.${name} (`)));
   for (const c of DETAIL_COLUMNS.split(",")) assert.match(table("complaints"), new RegExp(`^\\s+${c}\\s`, "m"), c);
   for (const c of MESSAGE_COLUMNS.split(",")) assert.match(table("complaint_messages"), new RegExp(`^\\s+${c}\\s`, "m"), c);
-  assert.ok(LIST_COLUMNS.split(",").length === 7);
+  assert.ok(LIST_COLUMNS.split(",").length === 8);
 });
 
 test("paging: range is page-based and asks for one look-ahead row", () => {
@@ -91,4 +92,20 @@ test("thread: ordered, 'you' vs staff, staff identity not exposed", () => {
   assert.deepEqual(t?.map((m) => [m.body, m.fromYou]), [["hello", true], ["reply", false]]);
   assert.equal(JSON.stringify(t).includes(STAFF), false);
   assert.equal(parseThread([{ id: "x" }], ME), null);
+});
+
+test("search and category filters in the query string", () => {
+  const q = parseListQuery({ q: "  exam   result ", categoryId: ID });
+  assert.deepEqual([q.q, q.categoryId], ["exam result", ID]);
+  assert.equal(parseListQuery({ q: "   " }).q, undefined);
+  assert.equal(parseListQuery({ q: "a".repeat(101) }).q, undefined); // invalid -> defaults, never an error page
+  assert.equal(parseListQuery({ q: "a\u0000b" }).q, undefined);
+  assert.equal(parseListQuery({ categoryId: "nope" }).categoryId, undefined);
+});
+test("LIKE metacharacters in a search are escaped; reference searches target the reference column", () => {
+  assert.equal(containsPattern("50%_off\\x"), "%50\\%\\_off\\\\x%");
+  assert.equal(containsPattern("a,b)(c"), "%a,b)(c%");
+  assert.equal(searchColumn("CMP-2026-000001"), "reference_number");
+  assert.equal(searchColumn("cmp-2026"), "reference_number");
+  assert.equal(searchColumn("exam"), "title");
 });
