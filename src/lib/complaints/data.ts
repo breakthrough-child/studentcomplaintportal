@@ -57,6 +57,8 @@ import {
 import { buildSubmitRpcArgs, parseSubmitResult } from "./rpc";
 import { echoComplaintValues, parseSubmitComplaint, type FieldSource, type SubmitComplaintState } from "./schema";
 import { fieldErrors } from "@/lib/validation/form";
+import { partialFailureMessage } from "@/lib/attachments/form";
+import { storeFiles, validateSubmittedFiles } from "@/lib/attachments/upload";
 
 export type FormOptions =
   | {
@@ -103,12 +105,16 @@ export async function loadFormOptions(): Promise<FormOptions> {
 }
 
 /** Validates and submits through the one atomic database function. */
-export async function submitComplaint(source: FieldSource): Promise<SubmitComplaintState> {
+export async function submitComplaint(source: FieldSource, fileValues: readonly unknown[] = []): Promise<SubmitComplaintState> {
   await requireApprovedStudent();
   const values = echoComplaintValues(source);
 
   const parsed = parseSubmitComplaint(source);
   if (!parsed.success) return { ok: false, fieldErrors: fieldErrors(parsed.error), values };
+
+  // Every file is validated BEFORE the complaint is created, so a bad file never leaves a half-saved complaint.
+  const prepared = await validateSubmittedFiles(fileValues);
+  if (!prepared.ok) return { ok: false, fieldErrors: { files: prepared.errors.join(" ") }, values };
 
   const supabase = await createClient();
   const { data, error } = await supabase.rpc("submit_complaint", buildSubmitRpcArgs(parsed.data));
@@ -129,5 +135,6 @@ export async function submitComplaint(source: FieldSource): Promise<SubmitCompla
   if (!result) {
     return { ok: true, message: "Your complaint was submitted, but we could not read its reference number. Please check your complaints list before submitting again." };
   }
-  return { ok: true, reference: result.reference, message: "Your complaint has been submitted." };
+  const failed = prepared.files.length > 0 ? await storeFiles(result.id, null, prepared.files) : [];
+  return { ok: true, reference: result.reference, message: partialFailureMessage("Your complaint has been submitted.", failed) };
 }

@@ -2,6 +2,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { AttachmentList } from "@/components/attachments";
 import { AssignForm, EscalateForm, RevokeButton, StaffReplyForm, StatusForm } from "@/components/staff/action-forms";
 import { allowedStaffTransitions } from "@/lib/staff/actions";
 import { getStaffComplaint, listAssignableLecturers } from "@/lib/staff/data";
@@ -43,7 +44,7 @@ export default async function StaffComplaintPage({ params }: { params: Promise<{
           <div><dt className="font-medium">Last activity</dt><dd>{when(c.lastActivityAt)}</dd></div>
         </dl>
 
-        <section aria-labelledby="desc"><h2 id="desc" className="font-medium">Complaint</h2><p className="mt-1 whitespace-pre-wrap">{c.description}</p></section>
+        <section aria-labelledby="desc"><h2 id="desc" className="font-medium">Complaint</h2><p className="mt-1 whitespace-pre-wrap">{c.description}</p><AttachmentList items={view.attachments.filter((a) => a.messageId === null)} complaintId={c.id} area="lecturer" canRemove={c.status !== "closed"} /></section>
 
         <section aria-labelledby="conv" className="space-y-3">
           <h2 id="conv" className="font-medium">Conversation</h2>
@@ -53,6 +54,7 @@ export default async function StaffComplaintPage({ params }: { params: Promise<{
                 <li key={m.id} className={m.fromYou ? "rounded-md bg-brand-50 p-3" : "rounded-md border border-slate-200 bg-white p-3"}>
                   <p className="text-xs text-slate-600">{m.author} · {when(m.createdAt)}</p>
                   <p className="mt-1 whitespace-pre-wrap">{m.body}</p>
+                  <AttachmentList items={m.attachments} complaintId={c.id} area="lecturer" canRemove={c.status !== "closed"} />
                 </li>
               ))}
             </ol>

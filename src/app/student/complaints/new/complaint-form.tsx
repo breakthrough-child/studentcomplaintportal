@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useActionState, useState } from "react";
 import { submitComplaintAction } from "./actions";
 import { LecturerPicker } from "./lecturer-picker";
+import { FileInput } from "@/components/attachments";
 import { PRIVACY_NOTICE_POINTS, routingNotice } from "@/lib/complaints/options";
 import { DESCRIPTION_MAX, TITLE_MAX, URGENCY_LABELS, URGENCY_LEVELS, initialSubmitState } from "@/lib/complaints/schema";
 
@@ -97,6 +98,8 @@ export function ComplaintForm({
         </select>
         <Err id="urgency-error" text={e.urgency} />
       </div>
+
+      <FileInput error={e.files} />
 
       <section className="rounded-md bg-slate-50 p-3 text-sm">
         <h2 className="font-medium">Privacy notice</h2>

@@ -5,5 +5,5 @@ import { submitComplaint } from "@/lib/complaints/data";
 import type { SubmitComplaintState } from "@/lib/complaints/schema";
 
 export async function submitComplaintAction(_previous: SubmitComplaintState, formData: FormData): Promise<SubmitComplaintState> {
-  return submitComplaint(formData);
+  return submitComplaint(formData, formData.getAll("files"));
 }

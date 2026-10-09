@@ -15,7 +15,7 @@ function refresh(formData: FormData) {
 }
 
 export async function replyAction(_p: ReplyState, formData: FormData): Promise<ReplyState> {
-  const r = await staffReply(formData);
+  const r = await staffReply(formData, formData.getAll("files"));
   if (r.ok) refresh(formData);
   return r;
 }

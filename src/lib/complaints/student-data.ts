@@ -1,10 +1,13 @@
 // UNVERIFIED: depends on next, react and @supabase/ssr, which could not be installed when this was written.
 import "server-only";
+import { partialFailureMessage } from "@/lib/attachments/form";
+import { storeFiles, validateSubmittedFiles } from "@/lib/attachments/upload";
 import { createClient } from "@/lib/supabase/server";
 import { requireApprovedStudent } from "@/lib/auth/guards";
 import { mapRpcError } from "./rpc-errors";
 import { buildReplyRpcArgs, echoReplyBody, parseReply, type ReplyState } from "./reply";
 import { fieldErrors } from "@/lib/validation/form";
+import { ATTACHMENT_COLUMNS, parseAttachments } from "@/lib/staff/view";
 import {
   DETAIL_COLUMNS, GENERIC_ERROR, containsPattern, searchColumn, LIST_COLUMNS, MESSAGE_COLUMNS, complaintIdSchema, listRange, parseComplaintDetail,
   parseComplaintList, parseListQuery, parseName, parseThread, shapeList, type DetailResult, type ListResult,
@@ -59,6 +62,13 @@ export async function getMyComplaint(rawId: unknown): Promise<DetailResult> {
   const thread = parseThread(msgs.data, profile.id);
   if (!thread) return { state: "error", message: GENERIC_ERROR };
 
+  // Attachment rows: RLS hides deleted files and files of complaints this student cannot access.
+  const atts = await supabase.from("complaint_attachments").select(ATTACHMENT_COLUMNS).eq("complaint_id", complaint.id);
+  const attachments = atts.error ? null : parseAttachments(atts.data, profile.id);
+  if (!attachments) return { state: "error", message: GENERIC_ERROR };
+  // Opening the page counts as reading it (drives the unread indicators). Best effort.
+  await supabase.rpc("mark_complaint_read", { p_complaint_id: complaint.id });
+
   // Names are display-only and best effort: RLS decides whether this student may read them, and a
   // failed lookup must not hide the complaint itself.
   const [lecturer, category] = await Promise.all([
@@ -69,17 +79,21 @@ export async function getMyComplaint(rawId: unknown): Promise<DetailResult> {
     state: "ok",
     complaint,
     thread,
+    attachments,
     recipientName: lecturer.error ? null : parseName(lecturer.data),
     categoryName: category.error ? null : parseName(category.data),
   };
 }
 
 /** Posts a reply through post_message (the only write path; it re-checks access and closed state). */
-export async function replyToComplaint(source: { get(name: string): unknown }): Promise<ReplyState> {
+export async function replyToComplaint(source: { get(name: string): unknown }, fileValues: readonly unknown[] = []): Promise<ReplyState> {
   await requireApprovedStudent();
   const body = echoReplyBody(source);
   const parsed = parseReply(source);
   if (!parsed.success) return { ok: false, fieldErrors: fieldErrors(parsed.error), body };
+
+  const prepared = await validateSubmittedFiles(fileValues);
+  if (!prepared.ok) return { ok: false, fieldErrors: { files: prepared.errors.join(" ") }, body };
 
   const supabase = await createClient();
   const { data, error } = await supabase.rpc("post_message", buildReplyRpcArgs(parsed.data));
@@ -88,5 +102,6 @@ export async function replyToComplaint(source: { get(name: string): unknown }): 
     // Unexpected reply shape: the message may have been saved, so do not invite a duplicate.
     return { ok: true, message: "Your message was sent. Reload the page to see it." };
   }
-  return { ok: true, message: "Your message was sent." };
+  const failed = prepared.files.length > 0 ? await storeFiles(parsed.data.complaintId, data, prepared.files) : [];
+  return { ok: true, message: partialFailureMessage("Your message was sent.", failed) };
 }

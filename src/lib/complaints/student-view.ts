@@ -1,6 +1,7 @@
 // Student complaint list/detail logic (pure). Authorization is NOT decided here: rows come from
 // RLS-bound SELECTs (a student can read only their own complaints). This module validates the
 // query string, validates and minimises what the database returned, and shapes it for display.
+import type { AttachmentView } from "../staff/view";
 import { z } from "zod";
 import { codePointLength, containsForbiddenText } from "./schema";
 
@@ -174,6 +175,7 @@ export type DetailResult =
       readonly state: "ok";
       readonly complaint: ComplaintDetail;
       readonly thread: readonly ThreadMessage[];
+      readonly attachments: readonly AttachmentView[];
       /** Display names only; null when the database does not let this student read them. */
       readonly recipientName: string | null;
       readonly categoryName: string | null;

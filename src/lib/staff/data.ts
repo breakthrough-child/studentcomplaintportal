@@ -9,6 +9,8 @@ import { buildReplyRpcArgs, echoReplyBody, parseReply, type ReplyState } from "@
 import { mapRpcError } from "@/lib/complaints/rpc-errors";
 import { GENERIC_ERROR, complaintIdSchema, containsPattern, searchColumn } from "@/lib/complaints/student-view";
 import { fieldErrors } from "@/lib/validation/form";
+import { partialFailureMessage } from "@/lib/attachments/form";
+import { storeFiles, validateSubmittedFiles } from "@/lib/attachments/upload";
 import {
   assignArgs, escalateArgs, parseAssign, parseEscalate, parseRevoke, parseStatusChange, revokeArgs, statusArgs, type ActionState,
 } from "./actions";
@@ -177,14 +179,18 @@ function failed(error: unknown): ActionState {
   return { ok: false, message: mapRpcError(error, "staff").message };
 }
 
-export async function staffReply(source: { get(name: string): unknown }): Promise<ReplyState> {
+export async function staffReply(source: { get(name: string): unknown }, fileValues: readonly unknown[] = []): Promise<ReplyState> {
   await requireStaff();
   const body = echoReplyBody(source);
   const parsed = parseReply(source);
   if (!parsed.success) return { ok: false, fieldErrors: fieldErrors(parsed.error), body };
+  const prepared = await validateSubmittedFiles(fileValues);
+  if (!prepared.ok) return { ok: false, fieldErrors: { files: prepared.errors.join(" ") }, body };
   const supabase = await createClient();
-  const { error } = await supabase.rpc("post_message", buildReplyRpcArgs(parsed.data));
-  return error ? { ok: false, message: mapRpcError(error, "reply").message, body } : { ok: true, message: "Your reply was sent." };
+  const { data, error } = await supabase.rpc("post_message", buildReplyRpcArgs(parsed.data));
+  if (error) return { ok: false, message: mapRpcError(error, "reply").message, body };
+  const failed = prepared.files.length > 0 && typeof data === "string" ? await storeFiles(parsed.data.complaintId, data, prepared.files) : [];
+  return { ok: true, message: partialFailureMessage("Your reply was sent.", failed) };
 }
 
 export async function changeStatus(source: { get(name: string): unknown }): Promise<ActionState> {

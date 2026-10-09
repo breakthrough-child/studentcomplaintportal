@@ -1,6 +1,7 @@
 // UNVERIFIED: depends on next and react, which could not be installed when this was written.
 "use client";
 
+import { FileInput } from "@/components/attachments";
 import { useActionState } from "react";
 import { REPLY_MAX, initialReplyState, type ReplyState } from "@/lib/complaints/reply";
 import { initialActionState, STAFF_STATUS_ACTIONS, type ActionState } from "@/lib/staff/actions";
@@ -30,6 +31,7 @@ export function StaffReplyForm({ complaintId, action }: { complaintId: string; a
       <label htmlFor="reply-body" className="block text-sm font-medium">Reply to the student</label>
       <textarea id="reply-body" name="body" required rows={4} maxLength={REPLY_MAX + 500} defaultValue={state.ok ? "" : (state.body ?? "")} aria-invalid={error ? true : undefined} className={input} />
       {error ? <p role="alert" className="text-sm text-red-700">{error}</p> : null}
+      <FileInput id="reply-files" error={state.fieldErrors?.files} />
       {state.message ? <p role={state.ok ? "status" : "alert"} className={`text-sm ${state.ok ? "text-green-800" : "text-red-700"}`}>{state.message}</p> : null}
       <button type="submit" disabled={pending} className={btn}>{pending ? "Sending..." : "Send reply"}</button>
     </form>

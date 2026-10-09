@@ -11,6 +11,11 @@ const securityHeaders = [
 const nextConfig: NextConfig = {
   poweredByHeader: false,
   reactStrictMode: true,
+  experimental: {
+    // Server Actions receive attachment uploads. Keep in step with the max_request_bytes setting; note that
+    // serverless hosts (for example Vercel) enforce their own, smaller request body limit (see README).
+    serverActions: { bodySizeLimit: "50mb" },
+  },
   async headers() {
     return [{ source: "/:path*", headers: securityHeaders }];
   },

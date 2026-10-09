@@ -5,6 +5,7 @@ import { notFound } from "next/navigation";
 import { getMyComplaint } from "@/lib/complaints/student-data";
 import { canStudentReply } from "@/lib/complaints/reply";
 import { ReplyForm } from "./reply-form";
+import { AttachmentList } from "@/components/attachments";
 
 export const metadata: Metadata = { title: "Complaint" };
 
@@ -22,7 +23,8 @@ export default async function ComplaintPage({ params }: { params: Promise<{ id: 
       </main>
     );
   }
-  const { complaint: c, thread, recipientName, categoryName } = result;
+  const { complaint: c, thread, attachments, recipientName, categoryName } = result;
+  const closed = !canStudentReply(c.status);
 
   return (
     <main id="main" className="mx-auto max-w-3xl space-y-6 p-6">
@@ -42,7 +44,7 @@ export default async function ComplaintPage({ params }: { params: Promise<{ id: 
       </dl>
       {c.isSensitive ? <p className="rounded-md bg-slate-50 p-3 text-sm">This complaint is handled confidentially. A main lecturer reviews it before it is released to the lecturer you chose.</p> : null}
 
-      <section aria-labelledby="desc"><h2 id="desc" className="font-medium">Your complaint</h2><p className="mt-1 whitespace-pre-wrap">{c.description}</p></section>
+      <section aria-labelledby="desc"><h2 id="desc" className="font-medium">Your complaint</h2><p className="mt-1 whitespace-pre-wrap">{c.description}</p><AttachmentList items={attachments.filter((a) => a.messageId === null)} complaintId={c.id} area="student" canRemove={!closed} /></section>
 
       <section aria-labelledby="conv" className="space-y-3">
         <h2 id="conv" className="font-medium">Conversation</h2>
@@ -52,6 +54,7 @@ export default async function ComplaintPage({ params }: { params: Promise<{ id: 
               <li key={m.id} className={m.fromYou ? "rounded-md bg-brand-50 p-3" : "rounded-md border border-slate-200 p-3"}>
                 <p className="text-xs text-slate-600">{m.fromYou ? "You" : "Staff"} · {when(m.createdAt)}</p>
                 <p className="mt-1 whitespace-pre-wrap">{m.body}</p>
+                <AttachmentList items={attachments.filter((a) => a.messageId === m.id)} complaintId={c.id} area="student" canRemove={!closed} />
               </li>
             ))}
           </ol>
