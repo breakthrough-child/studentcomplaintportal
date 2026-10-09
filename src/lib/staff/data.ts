@@ -22,6 +22,7 @@ import {
   type StaffQuery, type StaffSummary, type TimelineEntry, type TrendDay,
 } from "./view";
 import { rollup } from "./view";
+import { SETTINGS_COLUMNS, ASSIGNMENT_COLUMNS, describeScope, parseAssignments, parseSettingsRow, parseStaffSettings, settingsUpdate } from "./settings";
 
 export const requireStaff = (): Promise<Profile> => requireRole(["lecturer", "main_lecturer"]);
 export const requireMainLecturer = (): Promise<Profile> => requireRole(["main_lecturer"]);
@@ -272,7 +273,6 @@ export async function getReports(): Promise<Reports> {
 }
 
 // ---- lecturer settings ----------------------------------------------------------------------
-import { SETTINGS_COLUMNS, ASSIGNMENT_COLUMNS, describeScope, parseAssignments, parseSettingsRow, parseStaffSettings, settingsUpdate } from "./settings";
 
 export type SettingsView =
   | { ok: true; title: string; acceptsComplaints: boolean; departmentName: string | null; scopes: string[] }

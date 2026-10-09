@@ -2,6 +2,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { listMyComplaints } from "@/lib/complaints/student-data";
+import { getUnread } from "@/lib/complaints/overview-data";
 import { loadFormOptions } from "@/lib/complaints/data";
 import { COMPLAINT_STATUSES, STATUS_LABELS, parseListQuery } from "@/lib/complaints/student-view";
 
@@ -14,7 +15,7 @@ const date = (iso: string) => new Date(iso).toLocaleDateString("en-GB", { year: 
 export default async function MyComplaintsPage({ searchParams }: { searchParams: SearchParams }) {
   const raw = await searchParams;
   const query = parseListQuery(raw);
-  const [result, options] = await Promise.all([listMyComplaints(raw), loadFormOptions()]); // both enforce: signed in, student, approved; RLS limits rows
+  const [result, options, unread] = await Promise.all([listMyComplaints(raw), loadFormOptions(), getUnread()]); // both enforce: signed in, student, approved; RLS limits rows
   const categories = options.ok ? options.categories : [];
   const categoryName = new Map(categories.map((c) => [c.id, c.name]));
   const href = (page: number) => {
@@ -72,7 +73,7 @@ export default async function MyComplaintsPage({ searchParams }: { searchParams:
               <li key={c.id}>
                 <Link href={`/student/complaints/${c.id}`} className="block px-4 py-3 hover:bg-slate-50">
                   <span className="flex flex-wrap items-baseline justify-between gap-2">
-                    <span className="font-medium">{c.title}</span>
+                    <span className="font-medium">{c.title}{(unread.byComplaint.get(c.id)?.unread ?? 0) > 0 ? <span className="ml-2 rounded-full bg-brand-700 px-2 py-0.5 text-xs font-semibold text-white">{unread.byComplaint.get(c.id)?.unread} new</span> : null}</span>
                     <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-semibold">{c.statusLabel}</span>
                   </span>
                   <span className="mt-1 block text-sm text-slate-600">{c.reference} · {categoryName.get(c.categoryId) ?? "Category"} · Submitted {date(c.createdAt)} · Last activity {date(c.lastActivityAt)}</span>
