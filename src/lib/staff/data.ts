@@ -16,7 +16,7 @@ import {
 } from "./actions";
 import {
   ACCESS_COLUMNS, ATTACHMENT_COLUMNS, EVENT_COLUMNS, HISTORY_COLUMNS, MESSAGE_COLUMNS, STAFF_DETAIL_COLUMNS, STAFF_LIST_COLUMNS, STAFF_PAGE_SIZE,
-  buildConversation, buildTimeline, parseAccessGrants, parseAssignable, parseAttachments, parseNameMap, parseOverdue, parseScopeCounts,
+  buildConversation, buildTimeline, dateBounds, parseAccessGrants, parseAssignable, parseAttachments, parseNameMap, parseOverdue, parseScopeCounts,
   parseStaffDetail, parseStaffList, parseStaffQuery, parseTrend, staffRange, unreadIds,
   type AccessGrant, type AssignableLecturer, type AttachmentView, type ConversationMessage, type OverdueItem, type Rollup, type StaffDetail,
   type StaffQuery, type StaffSummary, type TimelineEntry, type TrendDay,
@@ -75,6 +75,10 @@ export async function listStaffComplaints(rawQuery: unknown, fixed: Partial<Pick
   if (query.categoryId) q = q.eq("category_id", query.categoryId);
   if (query.status) q = q.eq("status", query.status);
   if (query.q) q = q.ilike(searchColumn(query.q), containsPattern(query.q));
+  if (query.priority) q = q.eq("priority", query.priority);
+  const bounds = dateBounds(query);
+  if (bounds.gte) q = q.gte("created_at", bounds.gte);
+  if (bounds.lt) q = q.lt("created_at", bounds.lt);
   if (query.view === "new") q = q.in("status", ["submitted", "reopened"]);
   if (query.view === "awaiting") q = q.eq("status", "awaiting_student");
   if (query.view === "triage") q = q.eq("requires_triage", true);
@@ -84,7 +88,12 @@ export async function listStaffComplaints(rawQuery: unknown, fixed: Partial<Pick
     q = q.in("id", ids);
   }
   const { from, to } = staffRange(query.page);
-  const { data, error } = await q.order("last_activity_at", { ascending: false }).order("id", { ascending: false }).range(from, to);
+  const ordered =
+    query.sort === "newest" ? q.order("created_at", { ascending: false })
+    : query.sort === "oldest" ? q.order("created_at", { ascending: true })
+    : query.sort === "priority" ? q.order("priority", { ascending: false }).order("last_activity_at", { ascending: false })
+    : q.order("last_activity_at", { ascending: false });
+  const { data, error } = await ordered.order("id", { ascending: false }).range(from, to);
   if (error) return err(GENERIC_ERROR);
   const rows = parseStaffList(data);
   if (!rows) return err(GENERIC_ERROR);

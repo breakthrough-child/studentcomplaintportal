@@ -23,6 +23,19 @@ const blank = (v: unknown): unknown => {
   return x === null || (typeof x === "string" && x.trim() === "") ? undefined : x;
 };
 
+export const STAFF_SORTS = ["activity", "newest", "oldest", "priority"] as const;
+export type StaffSort = (typeof STAFF_SORTS)[number];
+export const SORT_LABELS: Readonly<Record<StaffSort, string>> = {
+  activity: "Latest activity", newest: "Newest first", oldest: "Oldest first", priority: "Highest priority",
+};
+export const PRIORITIES = ["low", "normal", "high", "urgent"] as const;
+
+/** A real calendar date written YYYY-MM-DD (rejects 2026-02-30). */
+const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/).refine((s) => {
+  const d = new Date(`${s}T00:00:00Z`);
+  return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === s;
+});
+
 export const staffQuerySchema = z.object({
   page: z.preprocess((v) => {
     const x = blank(v);
@@ -34,13 +47,17 @@ export const staffQuerySchema = z.object({
   departmentId: z.preprocess(blank, z.string().uuid().optional()),
   categoryId: z.preprocess(blank, z.string().uuid().optional()),
   q: z.preprocess(blank, searchText()),
+  priority: z.preprocess(blank, z.enum(PRIORITIES).optional()),
+  sort: z.preprocess(blank, z.enum(STAFF_SORTS).default("activity")),
+  from: z.preprocess(blank, isoDate.optional()),
+  to: z.preprocess(blank, isoDate.optional()),
 });
 export type StaffQuery = z.infer<typeof staffQuerySchema>;
 
 /** Invalid values fall back to the default view rather than an error page. */
 export function parseStaffQuery(raw: unknown, fixed: Partial<Pick<StaffQuery, "levelId" | "departmentId" | "view">> = {}): StaffQuery {
   const parsed = staffQuerySchema.safeParse(raw ?? {});
-  const base: StaffQuery = parsed.success ? parsed.data : { page: 1, view: "all", status: undefined, levelId: undefined, departmentId: undefined, categoryId: undefined, q: undefined };
+  const base: StaffQuery = parsed.success ? parsed.data : { page: 1, view: "all", status: undefined, levelId: undefined, departmentId: undefined, categoryId: undefined, q: undefined, priority: undefined, sort: "activity", from: undefined, to: undefined };
   // A path segment (e.g. /lecturer/levels/[levelId]) overrides the query string.
   return { ...base, ...Object.fromEntries(Object.entries(fixed).filter(([, v]) => v !== undefined)) } as StaffQuery;
 }
@@ -60,6 +77,10 @@ export function staffHref(base: string, query: StaffQuery, override: Partial<Sta
   if (q.departmentId) p.set("departmentId", q.departmentId);
   if (q.categoryId) p.set("categoryId", q.categoryId);
   if (q.q) p.set("q", q.q);
+  if (q.priority) p.set("priority", q.priority);
+  if (q.sort !== "activity") p.set("sort", q.sort);
+  if (q.from) p.set("from", q.from);
+  if (q.to) p.set("to", q.to);
   if (q.page > 1) p.set("page", String(q.page));
   const s = p.toString();
   return s ? `${base}?${s}` : base;
@@ -268,4 +289,12 @@ export type AssignableLecturer = { id: string; name: string; title: string | nul
 export function parseAssignable(data: unknown): AssignableLecturer[] | null {
   const r = z.array(assignable).safeParse(data);
   return r.success ? r.data.map((x) => ({ id: x.profile_id, name: x.full_name, title: x.title?.trim() || null, department: x.department_name?.trim() || null, scopes: x.scope_labels })) : null;
+}
+
+/** Half-open created_at bounds for the date filter: [from 00:00 UTC, day after "to" 00:00 UTC). */
+export function dateBounds(q: Pick<StaffQuery, "from" | "to">): { gte?: string; lt?: string } {
+  const out: { gte?: string; lt?: string } = {};
+  if (q.from) out.gte = `${q.from}T00:00:00.000Z`;
+  if (q.to) out.lt = new Date(Date.parse(`${q.to}T00:00:00.000Z`) + 86_400_000).toISOString();
+  return out;
 }

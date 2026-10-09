@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { COMPLAINT_STATUSES, STATUS_LABELS } from "@/lib/complaints/student-view";
 import type { StaffListResult, Reference } from "@/lib/staff/data";
-import { STAFF_VIEWS, VIEW_LABELS, staffHref, type StaffQuery } from "@/lib/staff/view";
+import { PRIORITIES, SORT_LABELS, STAFF_SORTS, STAFF_VIEWS, VIEW_LABELS, staffHref, type StaffQuery } from "@/lib/staff/view";
 
 const date = (iso: string) => new Date(iso).toLocaleDateString("en-GB", { dateStyle: "medium", timeZone: "UTC" });
 const field = "mt-1 rounded-md border border-slate-300 px-3 py-2 text-sm";
@@ -60,6 +60,19 @@ export function ComplaintList({
           <select name="categoryId" defaultValue={query.categoryId ?? ""} className={field}>
             <option value="">All</option>
             {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+          </select></label>
+        <label className="text-sm"><span className="block font-medium">Priority</span>
+          <select name="priority" defaultValue={query.priority ?? ""} className={field}>
+            <option value="">All</option>
+            {PRIORITIES.map((p) => <option key={p} value={p} className="capitalize">{p}</option>)}
+          </select></label>
+        <label className="text-sm"><span className="block font-medium">Submitted from</span>
+          <input type="date" name="from" defaultValue={query.from ?? ""} className={field} /></label>
+        <label className="text-sm"><span className="block font-medium">Submitted to</span>
+          <input type="date" name="to" defaultValue={query.to ?? ""} className={field} /></label>
+        <label className="text-sm"><span className="block font-medium">Sort by</span>
+          <select name="sort" defaultValue={query.sort} className={field}>
+            {STAFF_SORTS.map((s) => <option key={s} value={s}>{SORT_LABELS[s]}</option>)}
           </select></label>
         <button type="submit" className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-semibold hover:bg-slate-50">Apply</button>
       </form>

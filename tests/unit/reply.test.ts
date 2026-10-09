@@ -61,3 +61,14 @@ test("parseName", () => {
   assert.equal(parseName({ name: "" }), null);
   assert.equal(parseName(null), null);
 });
+
+import { canStudentReopen } from "../../src/lib/complaints/reply";
+test("reopen is offered only for resolved complaints inside the window", () => {
+  const now = new Date("2026-10-09T12:00:00Z");
+  assert.equal(canStudentReopen("resolved", "2026-10-01T00:00:00Z", 30, now), true);
+  assert.equal(canStudentReopen("resolved", "2026-08-01T00:00:00Z", 30, now), false);
+  assert.equal(canStudentReopen("resolved", "2026-10-09T00:00:00Z", 0, now), false);
+  assert.equal(canStudentReopen("closed", "2026-10-08T00:00:00Z", 30, now), false);
+  assert.equal(canStudentReopen("resolved", null, 30, now), false);
+  assert.equal(canStudentReopen("resolved", "garbage", 30, now), false);
+});

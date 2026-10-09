@@ -121,3 +121,20 @@ test("assignable lecturers", () => {
   assert.deepEqual(a, [{ id: U(1), name: "Dr A", title: null, department: "Law", scopes: ["200 Level / Law"] }]);
   assert.equal(parseAssignable([{ profile_id: "x" }]), null);
 });
+
+import { dateBounds } from "../../src/lib/staff/view";
+test("priority, sort and date filters validate and fall back safely", () => {
+  const q = parseStaffQuery({ priority: "urgent", sort: "priority", from: "2026-01-05", to: "2026-02-28" });
+  assert.deepEqual([q.priority, q.sort, q.from, q.to], ["urgent", "priority", "2026-01-05", "2026-02-28"]);
+  for (const bad of [{ priority: "critical" }, { sort: "random" }, { from: "2026-02-30" }, { to: "tomorrow" }, { from: "2026-1-5" }]) {
+    const p = parseStaffQuery(bad);
+    assert.deepEqual([p.priority, p.sort, p.from, p.to], [undefined, "activity", undefined, undefined], JSON.stringify(bad));
+  }
+  const href = staffHref("/lecturer/complaints", q);
+  assert.match(href, /priority=urgent/); assert.match(href, /sort=priority/); assert.match(href, /from=2026-01-05/);
+  assert.equal(staffHref("/x", parseStaffQuery({})), "/x");
+});
+test("the date filter is an inclusive day range in UTC (to-date includes the whole day)", () => {
+  assert.deepEqual(dateBounds({ from: "2026-01-05", to: "2026-01-31" }), { gte: "2026-01-05T00:00:00.000Z", lt: "2026-02-01T00:00:00.000Z" });
+  assert.deepEqual(dateBounds({ from: undefined, to: undefined }), {});
+});

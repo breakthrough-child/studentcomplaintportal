@@ -45,6 +45,17 @@ export function canStudentReply(status: ComplaintStatus): boolean {
   return status !== "closed";
 }
 
+/**
+ * UI convenience only: the database decides (transition_complaint_status, reopen_window_days).
+ * A resolved complaint can be reopened until `windowDays` after it was resolved.
+ */
+export function canStudentReopen(status: ComplaintStatus, resolvedAt: string | null, windowDays: number, now: Date): boolean {
+  if (status !== "resolved" || !resolvedAt) return false;
+  const resolved = Date.parse(resolvedAt);
+  if (Number.isNaN(resolved)) return false;
+  return now.getTime() <= resolved + windowDays * 86_400_000;
+}
+
 export type ReplyState = {
   readonly ok: boolean;
   readonly message?: string;

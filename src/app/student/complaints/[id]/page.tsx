@@ -2,9 +2,10 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { getMyComplaint } from "@/lib/complaints/student-data";
-import { canStudentReply } from "@/lib/complaints/reply";
+import { getMyComplaint, getReopenWindowDays } from "@/lib/complaints/student-data";
+import { canStudentReopen, canStudentReply } from "@/lib/complaints/reply";
 import { ReplyForm } from "./reply-form";
+import { ReopenForm } from "./reopen-form";
 import { AttachmentList } from "@/components/attachments";
 
 export const metadata: Metadata = { title: "Complaint" };
@@ -25,6 +26,7 @@ export default async function ComplaintPage({ params }: { params: Promise<{ id: 
   }
   const { complaint: c, thread, attachments, recipientName, categoryName } = result;
   const closed = !canStudentReply(c.status);
+  const reopenable = c.status === "resolved" && canStudentReopen(c.status, c.resolvedAt, await getReopenWindowDays(), new Date());
 
   return (
     <main id="main" className="mx-auto max-w-3xl space-y-6 p-6">
@@ -60,6 +62,8 @@ export default async function ComplaintPage({ params }: { params: Promise<{ id: 
           </ol>
         )}
       </section>
+
+      {reopenable ? <ReopenForm complaintId={c.id} /> : null}
 
       {canStudentReply(c.status) ? <ReplyForm complaintId={c.id} /> : <p className="rounded-md bg-slate-50 p-3 text-sm">This complaint is closed, so replies are turned off.</p>}
     </main>

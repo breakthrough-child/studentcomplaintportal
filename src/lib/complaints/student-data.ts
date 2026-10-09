@@ -7,6 +7,7 @@ import { requireApprovedStudent } from "@/lib/auth/guards";
 import { mapRpcError } from "./rpc-errors";
 import { buildReplyRpcArgs, echoReplyBody, parseReply, type ReplyState } from "./reply";
 import { fieldErrors } from "@/lib/validation/form";
+import { parseReopen, reopenArgs, type ActionState } from "@/lib/staff/actions";
 import { ATTACHMENT_COLUMNS, parseAttachments } from "@/lib/staff/view";
 import {
   DETAIL_COLUMNS, GENERIC_ERROR, containsPattern, searchColumn, LIST_COLUMNS, MESSAGE_COLUMNS, complaintIdSchema, listRange, parseComplaintDetail,
@@ -83,6 +84,22 @@ export async function getMyComplaint(rawId: unknown): Promise<DetailResult> {
     recipientName: lecturer.error ? null : parseName(lecturer.data),
     categoryName: category.error ? null : parseName(category.data),
   };
+}
+
+/** Days a resolved complaint can be reopened (read only to decide whether to show the button; the database enforces it). */
+export async function getReopenWindowDays(): Promise<number> {
+  const { data } = await (await createClient()).from("app_settings").select("value").eq("key", "reopen_window_days").maybeSingle();
+  return typeof data?.value === "number" && Number.isInteger(data.value) && data.value >= 0 ? data.value : 30;
+}
+
+/** Student asks to reopen their own resolved complaint. The RPC re-checks ownership, status and the window. */
+export async function reopenComplaint(source: { get(name: string): unknown }): Promise<ActionState> {
+  await requireApprovedStudent();
+  const parsed = parseReopen(source);
+  if (!parsed.success) return { ok: false, fieldErrors: fieldErrors(parsed.error) };
+  const { error } = await (await createClient()).rpc("transition_complaint_status", reopenArgs(parsed.data));
+  if (error) return { ok: false, message: mapRpcError(error, "student_status").message };
+  return { ok: true, message: "Your complaint has been reopened." };
 }
 
 /** Posts a reply through post_message (the only write path; it re-checks access and closed state). */
