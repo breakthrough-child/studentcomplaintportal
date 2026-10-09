@@ -101,6 +101,12 @@ Commands and actual results (2026-10-09, `verify.sh`)
 NOT verified
 - `next build`, `next dev`, any rendering, Server Action behaviour, `useActionState`, `@supabase/ssr` calls, the Supabase column lists in `.select()` against a live PostgREST, and any browser/E2E behaviour. Unit tests prove validation and pure logic only, not DB or integration behaviour; the static contract tests only compare names against the migration text.
 
+## Completion effort: Phase 1 baseline (2026-10-09)
+
+- Version control: the folder was not a Git repository. A tarball of the working tree was saved outside the repo, then `git init` and one baseline commit were made (`555e845`). `.env*` (except `.env.example`) is git-ignored.
+- Environment: Node 22.22.0, npm 10.9.4, pnpm, yarn, bun present. `git` and `psql` present. Docker CLI present but **no Docker daemon** (`/var/run/docker.sock` missing). **No Supabase CLI.** No `.env` file and no Supabase variables set. Registry: `timeout 45 npm view next version` was killed (exit 124): still blocked.
+- Re-run on the current tree: strict type-check 0 errors; 173/173 unit tests; boundary check passed (51 files); 63 files syntax-parsed; 243/243 database stand-in tests.
+
 ## Integration and security audit (2026-10-09)
 
 Scope: contracts between the TypeScript code and the SQL, and the student-facing attack surface. No git repository exists in this folder, so there was no `git status`; nothing was discarded or overwritten.
