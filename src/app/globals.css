@@ -1,0 +1,38 @@
+@import "tailwindcss";
+
+/* One restrained accent (deep teal) on neutral slate. */
+@theme {
+  --color-brand-50: #eef7f8;
+  --color-brand-100: #d5ebee;
+  --color-brand-600: #12717f;
+  --color-brand-700: #0d5964;
+  --color-brand-800: #0b474f;
+  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+
+:root {
+  color-scheme: light;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  background: #f8fafc;
+  color: #0f172a;
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-brand-600);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

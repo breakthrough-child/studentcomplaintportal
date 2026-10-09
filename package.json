@@ -1,0 +1,40 @@
+{
+  "name": "student-complaint-system",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Private student-to-lecturer complaint management on Next.js and Supabase.",
+  "engines": { "node": ">=20.9.0" },
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "check:boundaries": "node scripts/check-boundaries.mjs",
+    "test:unit": "node --import tsx --test tests/unit/*.test.ts",
+    "test:db": "bash supabase/tests/run-local.sh",
+    "test:db:supabase": "bash supabase/tests/run-supabase.sh"
+  },
+  "dependencies": {
+    "@supabase/ssr": "^0.7.0",
+    "@supabase/supabase-js": "^2.50.0",
+    "next": "^15.5.0",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
+    "server-only": "^0.0.1",
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "@eslint/eslintrc": "^3.3.0",
+    "@tailwindcss/postcss": "^4.1.0",
+    "@types/node": "^22.0.0",
+    "@types/react": "^19.1.0",
+    "@types/react-dom": "^19.1.0",
+    "eslint": "^9.30.0",
+    "eslint-config-next": "^15.5.0",
+    "tailwindcss": "^4.1.0",
+    "tsx": "^4.20.0",
+    "typescript": "^5.9.0"
+  },
+  "_comment_unverified": "Version ranges were chosen without registry access and have never been installed; there is no lockfile yet. react-hook-form, lucide-react, vitest and @playwright/test are added in the stages that use them."
+}
