@@ -26,7 +26,7 @@ const SERVER_ONLY_MODULES = [
 ];
 // The env modules parse the key; admin.ts is the single consumer (via getServerEnv()).
 const SERVICE_KEY_ALLOWED = new Set(["src/lib/env/schema.ts", "src/lib/env/server.ts", "src/lib/supabase/admin.ts"]);
-const ADMIN_IMPORT_ALLOWED = new Set(["src/lib/supabase/admin.ts"]); // plus src/lib/admin/** below
+const ADMIN_IMPORT_ALLOWED = new Set(["src/lib/supabase/admin.ts", "src/app/signup/actions.ts"]); // plus src/lib/admin/** below; signup does one narrow record-match lookup
 
 // Zero-width, bidirectional-control and line-separator characters. Built from hex ranges so this file
 // itself never contains the characters it forbids.

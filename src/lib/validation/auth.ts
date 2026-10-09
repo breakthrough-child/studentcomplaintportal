@@ -43,3 +43,23 @@ export type ResetPasswordInput = z.infer<typeof resetPasswordSchema>;
 /** Email-link types the callback route accepts for verifyOtp(). */
 export const otpLinkTypeSchema = z.enum(["invite", "recovery", "signup", "email", "magiclink", "email_change"]);
 export type OtpLinkType = z.infer<typeof otpLinkTypeSchema>;
+
+/**
+ * Student self-service sign-up. The form asks for the school email AND registration number the
+ * university registered; no password is chosen here. If both match an unclaimed record, the server
+ * e-mails an invitation link and the password is set from that link, so only the mailbox owner can
+ * ever set one (nobody can pre-claim someone else's address).
+ */
+export const SIGNUP_REGISTRATION_PATTERN = /^[A-Z0-9][A-Z0-9/._-]{1,39}$/;
+export const signupSchema = z.object({
+  email,
+  registrationNumber: z
+    .string({ required_error: "Enter your registration number", invalid_type_error: "Enter your registration number" })
+    .trim()
+    .toUpperCase()
+    .refine((s) => SIGNUP_REGISTRATION_PATTERN.test(s), "Enter your registration number exactly as the university issued it"),
+});
+export type SignupInput = z.infer<typeof signupSchema>;
+/** Identical whether or not a record matched, so the form cannot reveal who is registered. */
+export const SIGNUP_NEUTRAL_MESSAGE =
+  "If those details match a student record that has no account yet, we have sent an email with a link to set your password. Check your inbox (and spam folder). If nothing arrives, contact the university administrator.";

@@ -11,7 +11,7 @@ The original specification is preserved verbatim in [`docs/SPECIFICATION.md`](do
 
 | Role | Area | Capabilities |
 | --- | --- | --- |
-| Student | `/student/*` | Claim their pre-registered record, submit complaints (any lecturer, any department), attach files, search/filter their own complaints, converse, reopen a resolved complaint inside the window, see unread indicators |
+| Student | `/signup`, `/student/*` | Sign up with email + registration number, claim their pre-registered record, submit complaints (any lecturer, any department), attach files, search/filter their own complaints, converse, reopen a resolved complaint inside the window, see unread indicators |
 | Lecturer | `/lecturer/*` | Queue of complaints they are authorised to see (assignment scope or explicit access), filters (status, level, department, category, priority, dates, sort), detail, replies with attachments, permitted status transitions, escalation to a main lecturer, own settings |
 | Main lecturer | `/main-lecturer/*` + `/lecturer/complaints/[id]` | Everything a lecturer can do, plus oversight, triage of sensitive complaints, assigning/revoking access, reports (status counts, trend, overdue) |
 | Administrator | `/admin/*` | Users, students (register, approve, CSV import, invite), staff invitations, departments, academic levels, complaint categories, lecturer assignments, audit logs, settings. **Cannot read or act on complaints.** |
@@ -86,7 +86,7 @@ Authentication → URL Configuration:
 * Site URL = `NEXT_PUBLIC_SITE_URL`.
 * Redirect URLs: add `<site>/auth/callback`.
 
-Authentication → Providers → Email: enable e-mail sign-in, **disable open sign-ups** (new accounts are accepted only if an invitation or pre-registered student record matches; the database trigger enforces this too), and keep "Confirm email" on.
+Authentication → Providers → Email: enable e-mail sign-in, **keep "Allow new users to sign up" OFF** (accounts are created only through invitations; the database trigger also rejects anything that is not an invited staff member or a pre-registered student), and keep "Confirm email" on.
 
 Authentication → Email Templates → **Invite user** and **Reset password**: make the link go through the app's callback so it works with the server-side session handling:
 
@@ -118,6 +118,8 @@ npm run build && npm start
 ```
 
 ## Student onboarding flow
+
+Students can create their own account at **`/signup`** (linked from the sign-in page): they enter the school email and registration number the university registered, and, if both match an unclaimed record, the server e-mails an invitation link where they set their password. The response is identical whether or not anything matched. No password is chosen on the sign-up form, so nobody can claim someone else's address. This needs the service-role key and the invite e-mail template (sections 2 and 5). Lecturers and administrators cannot self-register; they are invited by an administrator.
 
 1. Admin registers the student (school e-mail, registration number, level, department, status) or imports a CSV (`school_email,full_name,registration_number,level,department`; the page validates every row first and imports nothing if any row is invalid).
 2. Admin sends the invitation; the student sets a password via the e-mail link.

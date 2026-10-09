@@ -6,7 +6,8 @@ import { mapInviteError } from "./errors";
 
 /**
  * Sends the Supabase invitation e-mail. Uses the SERVICE ROLE, so callers MUST have passed
- * requireRole(["admin"]) first. The database trigger handle_new_auth_user only accepts the new
+ * requireRole(["admin"]) first, OR (public student sign-up only) have matched an unclaimed student
+ * record by school email AND registration number. The database trigger handle_new_auth_user only accepts the new
  * account if an open staff_invitations row or a pre-registered student e-mail matches.
  * Requires the server-side service credentials and the invite e-mail template described in the README.
  */

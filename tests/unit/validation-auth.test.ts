@@ -97,3 +97,14 @@ test("an inactive profile is treated like a missing one", () => {
   assert.equal(usableProfile({ ...goodRow, is_active: false }), null);
   assert.equal(usableProfile(undefined), null);
 });
+
+import { SIGNUP_NEUTRAL_MESSAGE, signupSchema } from "../../src/lib/validation/auth";
+test("student sign-up: email is normalised, registration number upper-cased, no password field accepted", () => {
+  const r = signupSchema.safeParse({ email: " A@Uni.EDU ", registrationNumber: " csc/2020/001 " });
+  assert.ok(r.success);
+  if (r.success) assert.deepEqual(r.data, { email: "a@uni.edu", registrationNumber: "CSC/2020/001" });
+  for (const bad of [{ email: "nope", registrationNumber: "CSC1" }, { email: "a@b.co", registrationNumber: "a b" }, { email: "a@b.co", registrationNumber: "" }, { email: "a@b.co" }]) {
+    assert.equal(signupSchema.safeParse(bad).success, false, JSON.stringify(bad));
+  }
+  assert.doesNotMatch(SIGNUP_NEUTRAL_MESSAGE, /not found|no student|does not exist|invalid/i);
+});

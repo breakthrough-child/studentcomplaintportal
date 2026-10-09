@@ -25,9 +25,12 @@ export default async function LoginPage({ searchParams }: { searchParams: Search
       title="Sign in"
       description="Use the university email address your account was created with."
       footer={
-        <Link href="/forgot-password" className="font-medium text-brand-700 hover:underline">
-          Forgot your password?
-        </Link>
+        <span className="flex flex-col gap-1">
+          <Link href="/forgot-password" className="font-medium text-brand-700 hover:underline">
+            Forgot your password?
+          </Link>
+          <span>New student? <Link href="/signup" className="font-medium text-brand-700 hover:underline">Create your account</Link></span>
+        </span>
       }
     >
       {params.reset === "success" ? <Notice tone="success">Your password was updated. Sign in with the new password.</Notice> : null}
