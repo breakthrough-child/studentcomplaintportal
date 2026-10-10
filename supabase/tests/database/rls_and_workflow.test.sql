@@ -1199,5 +1199,86 @@ insert into auth.users (id, email, email_confirmed_at, raw_user_meta_data) value
 select tap_lite.ok((select level_id = tap_lite.id('L700') and department_id = tap_lite.id('D_TENG') from public.students where school_email = 'q.pre@uni.test'),
   'Q16 a pre-registered record keeps the administrator''s level and department');
 
+-- ============================== R. COURSES (migration 0014) ====================
+select tap_lite.as_user(tap_lite.id('admin1'));
+insert into public.courses (code, title, department_id, level_id) values
+  ('csc   301', '  Data   Structures ', tap_lite.id('D_TCS'), tap_lite.id('L300')),
+  ('ENG 210', 'Thermodynamics', tap_lite.id('D_TENG'), tap_lite.id('L200')),
+  ('OLD 100', 'Retired Course', null, null);
+select tap_lite.ok((select code = 'CSC 301' and title = 'Data Structures' from public.courses where code = 'CSC 301'),
+  'R1 course codes and titles are normalised');
+select tap_lite.throws($$insert into public.courses (code, title) values ('csc301', 'Duplicate')$$, '23505',
+  'R2 the same code with different spacing / case is a duplicate');
+update public.courses set is_active = false where code = 'OLD 100';
+select tap_lite.as_postgres();
+insert into tap_lite.fx select 'cCSC301', id from public.courses where code = 'CSC 301';
+insert into tap_lite.fx select 'cENG210', id from public.courses where code = 'ENG 210';
+insert into tap_lite.fx select 'cOLD',    id from public.courses where code = 'OLD 100';
+
+select tap_lite.as_user(tap_lite.id('studA'));
+select tap_lite.ok((select count(*) from public.courses) >= 3, 'R3 signed-in users can read the course catalogue');
+select tap_lite.throws($$insert into public.courses (code, title) values ('HACK 101', 'x y')$$, '42501', 'R4 a student cannot add catalogue courses');
+select tap_lite.throws($$select * from public.add_course('HACK 101', 'Hack')$$, '42501', 'R5 a student cannot use add_course');
+
+select tap_lite.as_user(tap_lite.id('lecCS'));
+select tap_lite.throws($$insert into public.courses (code, title) values ('LEC 101', 'Direct insert')$$, '42501',
+  'R6 lecturers cannot write the catalogue table directly');
+select tap_lite.rows_are($$update public.courses set title = 'Hijacked' where code = 'CSC 301' returning 1$$, 0,
+  'R7 lecturers cannot edit catalogue courses');
+select tap_lite.lives($$insert into public.lecturer_courses (lecturer_profile_id, course_id) values (tap_lite.id('lecCS'), tap_lite.id('cCSC301'))$$,
+  'R8 a lecturer can take a course');
+select tap_lite.throws($$insert into public.lecturer_courses (lecturer_profile_id, course_id) values (tap_lite.id('lecTarget'), tap_lite.id('cENG210'))$$, '42501',
+  'R9 a lecturer cannot add courses for someone else');
+select tap_lite.throws($$insert into public.lecturer_courses (lecturer_profile_id, course_id) values (tap_lite.id('lecCS'), tap_lite.id('cOLD'))$$, '22023',
+  'R10 an inactive course cannot be taken');
+select tap_lite.ok((select created from public.add_course('mth  201', 'Linear Algebra', tap_lite.id('D_TMTH'), tap_lite.id('L200'))),
+  'R11 add_course creates a missing course ...');
+select tap_lite.ok(exists (select 1 from public.lecturer_courses lc join public.courses c on c.id = lc.course_id
+                            where lc.lecturer_profile_id = tap_lite.id('lecCS') and c.code = 'MTH 201'),
+  'R12 ... and adds it to the lecturer''s courses');
+select tap_lite.throws($$select * from public.add_course('OLD100', 'Retired')$$, '22023', 'R13 add_course will not revive an inactive course');
+select tap_lite.throws($$select * from public.add_course('<bad>', 'Bad')$$, '22023', 'R14 add_course validates the code');
+
+select tap_lite.as_user(tap_lite.id('lecTarget'));
+select tap_lite.is_equal((select created from public.add_course('MTH201', 'Different title')), false,
+  'R15 add_course reuses an existing course with the same code instead of duplicating it');
+select tap_lite.lives($$insert into public.lecturer_courses (lecturer_profile_id, course_id) values (tap_lite.id('lecTarget'), tap_lite.id('cENG210'))$$,
+  'R16 another lecturer can take a different course');
+select tap_lite.rows_are($$delete from public.lecturer_courses where lecturer_profile_id = tap_lite.id('lecCS') returning 1$$, 0,
+  'R17 a lecturer cannot drop someone else''s courses');
+
+select tap_lite.as_user(tap_lite.id('autoSelf'));
+select tap_lite.throws($$insert into public.lecturer_courses (lecturer_profile_id, course_id) values (tap_lite.id('autoSelf'), tap_lite.id('cCSC301'))$$, '42501',
+  'R18 a pending lecturer cannot take courses');
+select tap_lite.throws($$select * from public.add_course('PEN 101', 'Pending course')$$, '42501', 'R19 a pending lecturer cannot add courses');
+
+-- Students find lecturers by course.
+select tap_lite.as_user(tap_lite.id('studA'));
+select tap_lite.rows_are($$select 1 from public.lecturer_courses$$, 0, 'R20 students cannot read who takes which course directly');
+select tap_lite.ok((select 'CSC 301' = any(courses) from public.search_lecturers('csc301') where profile_id = tap_lite.id('lecCS')),
+  'R21 searching a course code (any spacing / case) finds the lecturer, with their courses listed');
+select tap_lite.ok(exists (select 1 from public.search_lecturers('Data Struct') where profile_id = tap_lite.id('lecCS')),
+  'R22 searching a course title finds the lecturer');
+select tap_lite.ok(exists (select 1 from public.search_lecturers('Linear Algebra') where profile_id = tap_lite.id('lecTarget')),
+  'R23 every lecturer taking the course is found');
+select tap_lite.ok(exists (select 1 from public.search_lecturers(null, null, tap_lite.id('L300')) where profile_id = tap_lite.id('lecCS')),
+  'R24 the level filter also matches the levels of a lecturer''s courses');
+select tap_lite.rows_are($$select 1 from public.search_lecturers('OLD 100')$$, 0, 'R25 inactive courses are not searchable');
+
+select tap_lite.as_user(tap_lite.id('lecCS'));
+select tap_lite.rows_are($$delete from public.lecturer_courses where lecturer_profile_id = tap_lite.id('lecCS') and course_id = tap_lite.id('cCSC301') returning 1$$, 1,
+  'R26 a lecturer can drop a course at any time');
+select tap_lite.as_user(tap_lite.id('studA'));
+select tap_lite.rows_are($$select 1 from public.search_lecturers('CSC 301') where profile_id = tap_lite.id('lecCS')$$, 0,
+  'R27 after dropping it the lecturer is no longer found by that course');
+
+select tap_lite.as_postgres();
+select tap_lite.ok((select count(*) from public.audit_logs where entity_type = 'lecturer_courses') >= 3,
+  'R28 taking and dropping courses is recorded in the audit log');
+select tap_lite.as_anon();
+select tap_lite.throws($$select 1 from public.courses$$, '42501', 'R29 signed-out visitors cannot read the course catalogue');
+select tap_lite.as_user(tap_lite.id('admin1'));
+select tap_lite.rows_are($$select 1 from public.lecturer_courses$$, 3, 'R30 administrators can see course assignments (lecTarget: MTH 201, ENG 210; lecCS: MTH 201)');
+
 select * from tap_lite.finish();
 rollback;

@@ -30,6 +30,7 @@ export const assignmentCreateAction = wrap(admin.createAssignment, "/admin/assig
 export const assignmentToggleAction = wrap(admin.toggleAssignment, "/admin/assignments");
 export const assignmentDeleteAction = wrap(admin.deleteAssignment, "/admin/assignments");
 export const settingAction = wrap(admin.saveSetting, "/admin/settings");
+export const courseAction = wrap(admin.saveCourse, "/admin/courses");
 export const reviewAction = wrap(admin.reviewRegistration, "/admin/registrations");
 
 export async function importAction(_prev: admin.ImportState, formData: FormData): Promise<admin.ImportState> {

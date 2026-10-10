@@ -75,6 +75,7 @@ Apply, in order, the files in `supabase/migrations/`:
 20261010000011_open_registration.sql (self-registration, approval, private "avatars" bucket)
 20261010000012_no_email_confirmation.sql (sign-up without a confirmation link; admin overview counts)
 20261010000013_registration_scope.sql (level / department chosen at sign-up; public registration_options())
+20261010000014_courses.sql (course catalogue, lecturers' courses, search lecturers by course)
 ```
 
 * Supabase CLI: `supabase link --project-ref <ref>` then `supabase db push`.
@@ -187,6 +188,13 @@ Self-registered lecturers always get the ordinary lecturer role. An administrato
 
 **Existing flows still work.** An invitation for the e-mail takes precedence over self-registration. An admin can still pre-register students (one by one or by CSV, `school_email,full_name,registration_number,level,department`) and invite them. When a student signs up with a pre-registered school e-mail, the record is linked once the e-mail is confirmed, and the "claim your record" form remains for edge cases.
 
+## Courses
+
+* **Catalogue** (`/admin/courses`): administrators add, edit, and mark courses as no longer offered. Each course has a code, a title and optionally a department and level. Codes are normalised and de-duplicated (`csc301` = `CSC 301`).
+* **Lecturers** (`/lecturer/courses`, "My courses", for lecturers and main lecturers): search the catalogue and **add** the courses they take, **drop** them at any time, or add a missing course to the catalogue (`add_course()` reuses an existing course with the same code; max 20 new courses per lecturer per day, max 40 courses per lecturer). Only approved lecturers can do this, and only for their own list (RLS). Admins can edit or retire catalogue rows; lecturers cannot.
+* **Students** find lecturers by course: the lecturer search box on the new-complaint form matches the lecturer's name **or** a course code/title, and each result shows the course codes that lecturer takes. The department and level filters also match a lecturer's courses. Students cannot read the lecturer–course table directly; they only see it through the search.
+* Taking and dropping courses and catalogue changes are recorded in the audit log.
+
 ## Profile pictures
 
 Students (on `/student/profile`) and lecturers / main lecturers (on `/lecturer/settings`) can upload, replace or remove a profile picture. It appears there and in the header. Without one, an initials avatar is shown.
@@ -210,9 +218,9 @@ Students (on `/student/profile`) and lecturers / main lecturers (on `/lecturer/s
 
 ```bash
 npm run typecheck        # tsc --noEmit
-npm run test:unit        # 289 unit tests (node:test via tsx)
+npm run test:unit        # 295 unit tests (node:test via tsx)
 npm run check:boundaries # server-only/secret/invisible-character static checks
-npm run test:db          # 359 SQL tests on local PostgreSQL 16 + Supabase stand-ins
+npm run test:db          # 389 SQL tests on local PostgreSQL 16 + Supabase stand-ins
 npm run test:db:supabase # same suite on a real local Supabase stack (needs Docker + CLI)
 npm run lint             # ESLint
 ```
@@ -232,8 +240,8 @@ Unit tests cover validation schemas, routing/view parsers, error mapping, naviga
 
 | Area | Implemented | Verified how |
 | --- | --- | --- |
-| Database (schema, RLS, RPCs, storage policies, reporting, registration/approval, avatars) | Yes (13 migrations) | 359 SQL tests passed on PostgreSQL 16 with Supabase stand-ins. **Not** run on real Supabase. |
-| Pure logic (validation, parsers, policies, CSV, error mapping, nav, registration, avatars) | Yes | Strict `tsc` clean and 289 unit tests passed. |
+| Database (schema, RLS, RPCs, storage policies, reporting, registration/approval, avatars) | Yes (14 migrations) | 389 SQL tests passed on PostgreSQL 16 with Supabase stand-ins. **Not** run on real Supabase. |
+| Pure logic (validation, parsers, policies, CSV, error mapping, nav, registration, avatars) | Yes | Strict `tsc` clean and 295 unit tests passed. |
 | Next.js pages, layouts, Server Actions, route handlers, components | Yes (student, lecturer, main-lecturer, admin, attachments, auth, registration, avatars) | `tsc`, ESLint (0 errors) and `next build` pass. Not opened in a browser. |
 | Supabase Auth/Storage/SMTP integration, invitations, self-registration sign-up, avatar uploads | Yes | **Not run** against a project. Needs the migrations applied, Auth sign-ups enabled and the e-mail templates (section 5). |
 | Browser/E2E tests, accessibility audit | Not run | |

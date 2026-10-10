@@ -1,9 +1,9 @@
 // Maps database / auth errors from admin writes to safe messages (pure). Raw messages are never shown.
-export type AdminContext = "department" | "level" | "category" | "student" | "invitation" | "user" | "assignment" | "setting" | "registration";
+export type AdminContext = "department" | "level" | "category" | "student" | "invitation" | "user" | "assignment" | "setting" | "registration" | "course";
 
 const NAMES: Record<AdminContext, string> = {
   department: "department", level: "level", category: "category", student: "student",
-  invitation: "invitation", user: "user", assignment: "assignment", setting: "setting", registration: "registration",
+  invitation: "invitation", user: "user", assignment: "assignment", setting: "setting", registration: "registration", course: "course",
 };
 
 const UNIQUE: Record<AdminContext, string> = {
@@ -16,6 +16,7 @@ const UNIQUE: Record<AdminContext, string> = {
   assignment: "That lecturer already has this assignment.",
   setting: "That change conflicts with an existing record.",
   registration: "That change conflicts with an existing record.",
+  course: "A course with that code already exists (codes are compared without spaces).",
 };
 
 export function mapAdminError(error: unknown, ctx: AdminContext): string {

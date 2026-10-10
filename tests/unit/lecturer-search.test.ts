@@ -85,7 +85,7 @@ const row = {
 
 test("rows are minimised: assignments, department id and any extra column never reach the browser", () => {
   const out = parseLecturerRows([row]);
-  assert.deepEqual(out, [{ id: PID, name: "Jane Doe", title: "Dr", department: "Computer Science" }]);
+  assert.deepEqual(out, [{ id: PID, name: "Jane Doe", title: "Dr", department: "Computer Science", courses: [] }]);
   const json = JSON.stringify(out);
   for (const leak of ["scope_labels", "Physics", "700 Level", "email", "jane@", DEPT]) {
     assert.equal(json.includes(leak), false, leak);
@@ -99,7 +99,7 @@ test("a lecturer from another department is returned like any other (cross-depar
 
 test("blank title/department become null; malformed or non-array responses fail closed", () => {
   assert.deepEqual(parseLecturerRows([{ ...row, title: "  ", home_department_name: null }]), [
-    { id: PID, name: "Jane Doe", title: null, department: null },
+    { id: PID, name: "Jane Doe", title: null, department: null, courses: [] },
   ]);
   assert.equal(parseLecturerRows([{ ...row, profile_id: "nope" }]), null);
   assert.equal(parseLecturerRows([{ ...row, full_name: "" }]), null);
@@ -120,7 +120,7 @@ test("pageResults trims the look-ahead row and reports whether more exist", () =
 });
 
 test("lecturerLabel combines title, name and department without doubling the title", () => {
-  const mk = (o: Partial<LecturerOption>): LecturerOption => ({ id: PID, name: "Jane Doe", title: "Dr", department: "Law", ...o });
+  const mk = (o: Partial<LecturerOption>): LecturerOption => ({ id: PID, name: "Jane Doe", title: "Dr", department: "Law", courses: [], ...o });
   const sep = " " + String.fromCharCode(0x2014) + " ";
   assert.equal(lecturerLabel(mk({})), "Dr Jane Doe" + sep + "Law");
   assert.equal(lecturerLabel(mk({ name: "Dr Jane Doe" })), "Dr Jane Doe" + sep + "Law");
@@ -128,7 +128,8 @@ test("lecturerLabel combines title, name and department without doubling the tit
 });
 
 // ---- static contract check against the real migration (does NOT run the database) ----
-const sql = readFileSync(new URL("../../supabase/migrations/20261009000003_rpc.sql", import.meta.url), "utf8");
+// search_lecturers was last (re)defined in 0014 (courses).
+const sql = readFileSync(new URL("../../supabase/migrations/20261010000014_courses.sql", import.meta.url), "utf8");
 
 function signature(name: string): string {
   const start = sql.indexOf(`function public.${name}(`);
@@ -158,4 +159,11 @@ test("the newest migration for search_lecturers no longer returns lecturer assig
   assert.doesNotMatch(returns, /scope_labels/);
   for (const col of ["profile_id", "full_name", "title", "home_department_name"]) assert.match(returns, new RegExp(`\\b${col}\\b`));
   assert.match(sql, /revoke all on function public\.search_lecturers[\s\S]*from public, anon/);
+});
+
+test("course codes the lecturer takes are passed through (trimmed); bad shapes fail closed", () => {
+  const out = parseLecturerRows([{ ...row, courses: [" CSC 301 ", "MTH 201", ""] }]);
+  assert.deepEqual(out?.[0]?.courses, ["CSC 301", "MTH 201"]);
+  assert.equal(parseLecturerRows([{ ...row, courses: "CSC 301" }]), null);
+  assert.equal(parseLecturerRows([{ ...row, courses: [5] }]), null);
 });

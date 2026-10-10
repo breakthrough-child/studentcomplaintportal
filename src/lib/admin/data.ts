@@ -13,6 +13,7 @@ import {
   parseStudentCreate, parseStudentUpdate, parseUserUpdate, reviewArgs, staffDetailsRow, studentInsertRow, studentUpdateRow, userUpdateRow, type AdminState, type Src,
 } from "./schemas";
 import { parseSettingValue } from "./settings";
+import { COURSE_COLUMNS, adminCourseSchema, courseSearchPattern, parseCourses } from "@/lib/courses/schema";
 import {
   ADMIN_PAGE_SIZE, ASSIGNMENT_COLS, AUDIT_COLS, INVITATION_COLS, STAFF_DETAIL_COLS, STUDENT_COLS, USER_COLUMNS,
   adminRange, assignmentRowSchema, auditRowSchema, invitationRowSchema, likeTerm, pageOf, parseAdminList, parseList, registrationFilters,
@@ -275,6 +276,39 @@ export async function deleteAssignment(src: Src): Promise<AdminState> {
   if (!p.success) return invalid(p.error);
   const { error } = await (await createClient()).from("lecturer_assignments").delete().eq("id", p.data.id);
   return done(error, "assignment", "Assignment removed.");
+}
+
+// ---- course catalogue --------------------------------------------------------------------
+export async function listCourses(raw: unknown) {
+  await requireAdmin();
+  const q = parseAdminList(raw);
+  const s = await createClient();
+  let query = s.from("courses").select(COURSE_COLUMNS).order("code");
+  if (q.filter === "active") query = query.eq("is_active", true);
+  if (q.filter === "inactive") query = query.eq("is_active", false);
+  if (q.q) { const p = courseSearchPattern(q.q); query = query.or(`code.ilike.${p.code},title.ilike.${p.title}`); }
+  const [from, to] = adminRange(q.page);
+  const { data, error } = await query.range(from, to);
+  const rows = error ? null : parseCourses(data);
+  if (!rows) return { ok: false as const, query: q };
+  const page = pageOf(rows);
+  const taking = new Map<string, number>();
+  if (page.items.length > 0) {
+    const { data: links, error: lErr } = await s.from("lecturer_courses").select("course_id").in("course_id", page.items.map((c) => c.id));
+    if (lErr) return { ok: false as const, query: q };
+    for (const l of links ?? []) taking.set(l.course_id, (taking.get(l.course_id) ?? 0) + 1);
+  }
+  return { ok: true as const, query: q, ...page, taking };
+}
+export async function saveCourse(src: Src): Promise<AdminState> {
+  await requireAdmin();
+  const get = (k: string) => { const v = src.get(k); return v === null ? undefined : v; };
+  const p = adminCourseSchema.safeParse({ id: get("id"), code: get("code"), title: get("title"), departmentId: get("departmentId"), levelId: get("levelId"), isActive: get("isActive") });
+  if (!p.success) return invalid(p.error);
+  const row = { code: p.data.code, title: p.data.title, department_id: p.data.departmentId, level_id: p.data.levelId, is_active: p.data.isActive };
+  const s = await createClient();
+  const { error } = p.data.id ? await s.from("courses").update(row).eq("id", p.data.id) : await s.from("courses").insert(row);
+  return done(error, "course", p.data.id ? "Course updated." : "Course added.");
 }
 
 // ---- audit logs and settings -------------------------------------------------------------

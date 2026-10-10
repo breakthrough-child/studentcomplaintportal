@@ -1,5 +1,6 @@
 // Lecturer search (pure). The student-facing selector shows the MINIMUM needed to
-// pick a lecturer: name, title and home department. Migration 0008 removed lecturer
+// pick a lecturer: name, title, home department and the course codes they take
+// (migration 0014: students who do not know a lecturer's department search by course). Migration 0008 removed lecturer
 // assignments (`scope_labels`) from the database function; this parser also drops
 // any column it does not know, as a second layer, so nothing extra reaches a browser.
 import { z } from "zod";
@@ -16,7 +17,7 @@ export const lecturerSearchSchema = z
     query: z.preprocess(
       (v) => (v === null ? undefined : v),
       z
-        .string({ invalid_type_error: "Enter a name to search for" })
+        .string({ invalid_type_error: "Enter a name or course to search for" })
         .transform((s) => s.replace(/\s+/g, " ").trim())
         .superRefine((s, ctx) => {
           if (codePointLength(s) > LECTURER_QUERY_MAX) {
@@ -65,14 +66,17 @@ const lecturerRowSchema = z.object({
   full_name: z.string().min(1),
   title: z.string().nullable(),
   home_department_name: z.string().nullable(),
+  courses: z.array(z.string()).max(20).optional(),
 });
 
-/** What the browser receives. Four fields, nothing about assignments, e-mail or complaints. */
+/** What the browser receives. Nothing about assignments, e-mail or complaints. */
 export type LecturerOption = {
   readonly id: string;
   readonly name: string;
   readonly title: string | null;
   readonly department: string | null;
+  /** Codes of the courses the lecturer takes, e.g. ["CSC 301"]. */
+  readonly courses: readonly string[];
 };
 
 /** Validated, minimised rows; null if the response is not the expected shape (fail closed). */
@@ -84,6 +88,7 @@ export function parseLecturerRows(data: unknown): LecturerOption[] | null {
     name: row.full_name,
     title: row.title?.trim() ? row.title.trim() : null,
     department: row.home_department_name?.trim() ? row.home_department_name.trim() : null,
+    courses: (row.courses ?? []).map((c) => c.trim()).filter(Boolean),
   }));
 }
 

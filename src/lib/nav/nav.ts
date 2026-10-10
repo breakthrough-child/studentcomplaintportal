@@ -15,6 +15,7 @@ export const NAV_BY_ROLE: Readonly<Record<Role, readonly NavItem[]>> = {
   lecturer: [
     { label: "Dashboard", href: "/lecturer/dashboard" },
     { label: "Complaints", href: "/lecturer/complaints" },
+    { label: "My courses", href: "/lecturer/courses" },
     { label: "Settings", href: "/lecturer/settings" },
   ],
   main_lecturer: [
@@ -22,6 +23,7 @@ export const NAV_BY_ROLE: Readonly<Record<Role, readonly NavItem[]>> = {
     { label: "Complaints", href: "/main-lecturer/complaints" },
     { label: "Assignments", href: "/main-lecturer/assignments" },
     { label: "Reports", href: "/main-lecturer/reports" },
+    { label: "My courses", href: "/lecturer/courses" },
     { label: "Settings", href: "/lecturer/settings" },
   ],
   admin: [
@@ -32,6 +34,7 @@ export const NAV_BY_ROLE: Readonly<Record<Role, readonly NavItem[]>> = {
     { label: "Lecturers", href: "/admin/lecturers" },
     { label: "Departments", href: "/admin/departments" },
     { label: "Levels", href: "/admin/levels" },
+    { label: "Courses", href: "/admin/courses" },
     { label: "Categories", href: "/admin/categories" },
     { label: "Assignments", href: "/admin/assignments" },
     { label: "Audit logs", href: "/admin/audit-logs" },

@@ -68,12 +68,12 @@ export function LecturerPicker({
 
       <div className="grid gap-2 sm:grid-cols-3">
         <label className="text-sm">
-          <span className="sr-only">Lecturer name</span>
+          <span className="sr-only">Lecturer name or course</span>
           <input
             type="search"
             value={query}
             maxLength={100}
-            placeholder="Search by name"
+            placeholder="Name or course, e.g. CSC 301"
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === "Enter") {
@@ -81,12 +81,12 @@ export function LecturerPicker({
                 run(1);
               }
             }}
-            className="w-full rounded-md border border-slate-300 px-3 py-2"
+            className="w-full rounded-md border border-slate-300 bg-white px-3 py-2"
           />
         </label>
         <label className="text-sm">
           <span className="sr-only">Lecturer department</span>
-          <select value={lecturerDepartmentId} onChange={(e) => setDept(e.target.value)} className="w-full rounded-md border border-slate-300 px-3 py-2">
+          <select value={lecturerDepartmentId} onChange={(e) => setDept(e.target.value)} className="w-full rounded-md border border-slate-300 bg-white px-3 py-2">
             <option value="">Any department</option>
             {departments.map((d) => (
               <option key={d.id} value={d.id}>{d.name}</option>
@@ -95,7 +95,7 @@ export function LecturerPicker({
         </label>
         <label className="text-sm">
           <span className="sr-only">Level the lecturer teaches</span>
-          <select value={lecturerLevelId} onChange={(e) => setLevel(e.target.value)} className="w-full rounded-md border border-slate-300 px-3 py-2">
+          <select value={lecturerLevelId} onChange={(e) => setLevel(e.target.value)} className="w-full rounded-md border border-slate-300 bg-white px-3 py-2">
             <option value="">Any level</option>
             {levels.map((l) => (
               <option key={l.id} value={l.id}>{l.name}</option>
@@ -109,7 +109,7 @@ export function LecturerPicker({
 
       <div aria-live="polite" className="text-sm">
         {message ? <p role="alert" className="text-red-700">{message}</p> : null}
-        {results && results.length === 0 ? <p className="text-slate-600">No lecturers matched. Try a shorter name or remove a filter.</p> : null}
+        {results && results.length === 0 ? <p className="text-slate-600">No lecturers matched. Try a shorter name, a course code such as CSC 301, or remove a filter.</p> : null}
         {results && results.length > 0 ? <p className="sr-only">{results.length} lecturers found</p> : null}
       </div>
 
@@ -117,8 +117,15 @@ export function LecturerPicker({
         <ul className="divide-y divide-slate-200 rounded-md border border-slate-200">
           {results.map((l) => (
             <li key={l.id}>
-              <button type="button" onClick={() => setSelected(l)} className="w-full px-3 py-2 text-left text-sm hover:bg-slate-50">
-                {lecturerLabel(l)}
+              <button type="button" onClick={() => setSelected(l)} className="w-full px-3 py-2.5 text-left text-sm hover:bg-slate-50">
+                <span className="block font-medium">{lecturerLabel(l)}</span>
+                {l.courses.length > 0 ? (
+                  <span className="mt-1 flex flex-wrap gap-1" aria-label={`Courses: ${l.courses.join(", ")}`}>
+                    {l.courses.map((c) => (
+                      <span key={c} className="rounded bg-gold-100 px-1.5 py-0.5 text-xs font-medium text-navy-800 dark:bg-gold-500 dark:text-navy-900">{c}</span>
+                    ))}
+                  </span>
+                ) : null}
               </button>
             </li>
           ))}
