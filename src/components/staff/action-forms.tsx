@@ -26,7 +26,7 @@ export function StaffReplyForm({ complaintId, action }: { complaintId: string; a
   const [state, run, pending] = useActionState(action, initialReplyState);
   const error = state.fieldErrors?.body;
   return (
-    <form action={run} key={state.ok ? "sent" : "draft"} className="space-y-2" encType="multipart/form-data">
+    <form action={run} key={state.ok ? "sent" : "draft"} className="space-y-2">
       <input type="hidden" name="complaintId" value={complaintId} />
       <label htmlFor="reply-body" className="block text-sm font-medium">Reply to the student</label>
       <textarea id="reply-body" name="body" required rows={4} maxLength={REPLY_MAX + 500} defaultValue={state.ok ? "" : (state.body ?? "")} aria-invalid={error ? true : undefined} className={input} />
