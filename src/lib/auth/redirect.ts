@@ -2,7 +2,7 @@
 import { allowedRolesForPath, firstSegment, homePathForRole, type Role } from "./roles";
 
 const PLACEHOLDER_ORIGIN = "http://placeholder.invalid";
-const AUTH_AREAS = new Set(["login", "forgot-password", "reset-password", "auth", "unauthorized"]);
+const AUTH_AREAS = new Set(["login", "signup", "forgot-password", "reset-password", "auth", "unauthorized", "pending"]);
 
 /**
  * Accepts only same-site relative paths ("/x?y#z"). Anything that a browser

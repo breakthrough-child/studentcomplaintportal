@@ -18,7 +18,7 @@ export default async function ComplaintPage({ params }: { params: Promise<{ id: 
   if (result.state === "not_found") notFound();
   if (result.state === "error") {
     return (
-      <main id="main" className="mx-auto max-w-3xl space-y-3 p-6">
+      <main id="main" className="mx-auto max-w-3xl space-y-3 px-4 py-6 sm:px-6 sm:py-8">
         <p role="alert" className="rounded-md bg-red-50 p-3 text-red-800">{result.message}</p>
         <Link className="underline" href="/student/complaints">Back to my complaints</Link>
       </main>
@@ -29,10 +29,10 @@ export default async function ComplaintPage({ params }: { params: Promise<{ id: 
   const reopenable = c.status === "resolved" && canStudentReopen(c.status, c.resolvedAt, await getReopenWindowDays(), new Date());
 
   return (
-    <main id="main" className="mx-auto max-w-3xl space-y-6 p-6">
+    <main id="main" className="mx-auto max-w-3xl space-y-6 px-4 py-6 sm:px-6 sm:py-8">
       <Link className="text-sm underline" href="/student/complaints">← My complaints</Link>
       <header className="space-y-1">
-        <h1 className="text-2xl font-semibold">{c.title}</h1>
+        <h1 className="border-l-4 border-gold-500 pl-3 text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">{c.title}</h1>
         <p className="text-sm text-slate-600">{c.reference} · <strong>{c.statusLabel}</strong></p>
       </header>
 

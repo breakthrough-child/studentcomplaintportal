@@ -182,6 +182,60 @@ What it does **not** prove: anything that depends on real Supabase components (s
 | Audit log hygiene, append-only, overdue report | J1-J15 |
 | Catalog guards (RLS on, no anon/PUBLIC execute on SECURITY DEFINER, private bucket) | K1-K7 |
 
+## Open registration, approval and profile pictures (2026-10-10)
+
+Requirement change: university student/staff records are not available, so registration may not depend on them.
+
+- Migration `20261010000011_open_registration.sql` (forward-only):
+  - `students.registration_number`, `level_id` and `department_id` are now nullable, plus a CHECK that an approved student has a level and department.
+  - `staff_details.approval_status` (+ `approved_by`/`approved_at`); existing staff default to approved.
+  - New `registration_details` (personal e-mail, staff ID), readable only by the owner and admins.
+  - `profiles.avatar_path` with a CHECK that it points into the owner's own folder.
+  - New setting `self_registration_enabled`.
+  - `handle_new_auth_user` accepts self-registration metadata as a third path after invitations and pre-registered students. Only `student`/`lecturer` are accepted, the role is fixed in SQL, and the account is always pending.
+  - `current_user_role()` returns NULL for non-approved lecturers. `_is_eligible_lecturer` and `search_lecturers` exclude them, and `guard_assignment` refuses them.
+  - New RPCs: `my_approval_status`, `list_registrations` and `review_registration` (admin only, audit logged), and `set_my_avatar`.
+  - New private `avatars` bucket with owner-write / profile-visibility read policies.
+  - The `profiles_select` and `staff_details_select` policies now always allow a user's own row, so a pending lecturer can see that they are pending.
+- App changes:
+  - `/signup` was rewritten. It now uses the anon-key `signUp` with the user's password; the service role is no longer used there, and the boundary allow-list entry was removed.
+  - New `/pending` page. `requireRole` routes unapproved lecturers there.
+  - New `/admin/registrations` review page, plus a dashboard card, nav entry and setting.
+  - Profile-picture upload/remove on the student profile and lecturer settings pages, with the avatar shown in the header. Images are re-encoded with `sharp` (now a direct dependency).
+- Verified on 2026-10-10:
+  - `tsc` clean; ESLint 0 errors (the earlier error from the old signup action is gone).
+  - `next build` succeeds.
+  - 281 unit tests pass.
+  - 319 SQL tests pass on a disposable local PostgreSQL 16 cluster with the stand-ins (67 new: sections M and N).
+  - The boundary check passes on a copy with `.env.example` restored; in the working tree it fails only because `.env.example` is currently deleted there.
+  - Not run: real Supabase Auth/Storage, e-mail delivery, browser.
+
+## Sign-up without a confirmation link; admin area (2026-10-10)
+
+- Migration `20261010000012_no_email_confirmation.sql`:
+  - `profiles.email_ownership_verified` is true only when an address is confirmed by a link after creation. Auto-confirmed sign-ups do not count.
+  - Linking a pre-registered **approved** student record without verified ownership (trigger or `claim_student_record`) resets it to `pending`.
+  - `confirm_existing_unconfirmed_users()` is SQL-editor only.
+  - `list_registrations` now reports verified ownership.
+  - New `admin_overview_counts()`: aggregate counts, admin only, no content.
+  - `bootstrap_first_admin` now promotes an existing profile instead of failing.
+- `supabase/config.toml` (local stack): sign-ups on, email confirmations off.
+- `/signup` routes by the real role and approval status read back from the database.
+- `/admin`, `/student`, `/lecturer` and `/main-lecturer` now redirect to their dashboards instead of returning 404.
+- The admin dashboard shows people and complaint counts. On `/admin/lecturers`, admins can edit lecturer details and activation/role; on `/admin/students`, account activation.
+- New static test (`admin-guard.test.ts`): every admin data function calls `requireAdmin()`, and admin pages never touch the database client directly.
+- Verified: `tsc`; ESLint 0 errors; `next build`; 287 unit tests; 343 SQL tests (24 new, sections O and P); boundary check (on a copy with `.env.example`); signed-out redirects for every area checked against the production server.
+- Not verified: signed-in flows against a real Supabase project. The project in `.env.local` does not contain this app's schema.
+
+## Level / department at sign-up (2026-10-10)
+
+- Migration `20261010000013_registration_scope.sql`:
+  - Students must choose an active level and department, and lecturers an active home department. The trigger validates them; an invalid value rejects the whole sign-up.
+  - Pre-registered records keep the administrator's values.
+  - `registration_options()` is the only anon-callable definer function; test K1 allow-lists it explicitly and Q4 asserts it is the only one.
+- The sign-up form has level/department selects; the admin registrations page warns when no departments exist.
+- Verified: `tsc`; 289 unit tests; 359 SQL tests (16 new, section Q).
+
 ## Remaining risks and unverified items
 
 Unverified against real Supabase (each is a place the stand-ins could differ):
@@ -232,7 +286,7 @@ export PGHOST=... PGPORT=... PGUSER=postgres
 
 ## Apply to a real Supabase project (not yet done)
 
-1. Create a project. Turn off public sign-ups (Auth settings) and require e-mail confirmation. The `auth.users` trigger rejects unknown e-mails regardless, as defence in depth.
+1. Create a project. Turn ON sign-ups (needed for `/signup` since 2026-10-10) and require e-mail confirmation. The `auth.users` trigger still accepts only invitations, pre-registered students, or `student`/`lecturer` registrations (always pending).
 2. `supabase link --project-ref <ref>` then `supabase db push` (applies `supabase/migrations/*` in order). Run `supabase/seed.sql` only in development.
 3. Set `allowed_student_email_domains` in `app_settings` before go-live (empty means any domain).
 4. Create the first administrator from the SQL editor: `select public.bootstrap_first_admin('you@school.edu', 'Your Name');` then invite that address from Authentication > Users. It refuses once an administrator exists, and no API role can call it.

@@ -3,7 +3,7 @@ import "server-only";
 import { cache } from "react";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { PROFILE_COLUMNS, usableProfile, type Profile } from "./profile";
+import { PROFILE_COLUMNS, isLecturerRole, needsStaffApproval, parseApprovalState, usableProfile, type ApprovalState, type Profile } from "./profile";
 import { isRoleAllowed, type Role } from "./roles";
 
 /** Verified user from the Auth server (never from the unverified cookie). */
@@ -25,6 +25,16 @@ export const getCurrentProfile = cache(async (): Promise<Profile | null> => {
   const { data, error } = await supabase.from("profiles").select(PROFILE_COLUMNS).eq("id", user.id).maybeSingle();
   if (error) return null;
   return usableProfile(data);
+});
+
+/**
+ * The caller's approval state, decided by the database (my_approval_status()), the same data the
+ * RLS helpers use. null on error or when signed out / deactivated.
+ */
+export const getApprovalState = cache(async (): Promise<ApprovalState | null> => {
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("my_approval_status");
+  return error ? null : parseApprovalState(data);
 });
 
 /** Requires a signed-in, active user. Signed out -> /login; unusable account -> /unauthorized. */
@@ -58,5 +68,8 @@ export async function requireApprovedStudent(): Promise<Profile> {
 export async function requireRole(allowed: readonly Role[]): Promise<Profile> {
   const profile = await requireUser();
   if (!isRoleAllowed(profile.role, allowed)) redirect("/unauthorized");
+  // A lecturer account that an administrator has not approved has no staff privileges in the
+  // database (current_user_role() is NULL); send it to the explanation page instead of empty screens.
+  if (isLecturerRole(profile.role) && needsStaffApproval(profile.role, await getApprovalState())) redirect("/pending");
   return profile;
 }

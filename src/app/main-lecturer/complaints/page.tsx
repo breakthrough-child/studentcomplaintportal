@@ -9,8 +9,8 @@ export default async function MainLecturerComplaints({ searchParams }: { searchP
   await requireMainLecturer();
   const [result, reference] = await Promise.all([listStaffComplaints(await searchParams), loadReference()]);
   return (
-    <main id="main" className="mx-auto max-w-6xl space-y-4 p-6">
-      <h1 className="text-2xl font-semibold">Complaints under your oversight</h1>
+    <main id="main" className="mx-auto max-w-6xl space-y-4 px-4 py-6 sm:px-6 sm:py-8">
+      <h1 className="border-l-4 border-gold-500 pl-3 text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">Complaints under your oversight</h1>
       <p className="text-sm text-slate-600">You see the complaints the database authorises for your scope. Restricted complaints appear only with institution-wide access.</p>
       <ComplaintList base="/main-lecturer/complaints" result={result} reference={reference} />
     </main>

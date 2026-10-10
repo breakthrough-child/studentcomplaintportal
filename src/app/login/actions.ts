@@ -8,6 +8,7 @@ import { createClient } from "@/lib/supabase/server";
 import { loginSchema } from "@/lib/validation/auth";
 import { fieldErrors, type FormState } from "@/lib/validation/form";
 
+// One message for every failure (also "email not confirmed", if the project still requires confirmation).
 const GENERIC_FAILURE = "Invalid email or password.";
 
 export async function loginAction(_previous: FormState, formData: FormData): Promise<FormState> {

@@ -26,6 +26,7 @@ export const NAV_BY_ROLE: Readonly<Record<Role, readonly NavItem[]>> = {
   ],
   admin: [
     { label: "Dashboard", href: "/admin/dashboard" },
+    { label: "Registrations", href: "/admin/registrations" },
     { label: "Users", href: "/admin/users" },
     { label: "Students", href: "/admin/students" },
     { label: "Lecturers", href: "/admin/lecturers" },

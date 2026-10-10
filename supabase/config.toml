@@ -1,0 +1,23 @@
+# Supabase CLI configuration for the LOCAL development stack (`supabase start`).
+# Only the settings this app depends on are listed; the CLI uses its defaults for everything else.
+#
+# This file does NOT change a hosted project by itself. For the hosted project, set the same values in
+# the dashboard (see README, "Supabase Auth configuration"). Do not run `supabase config push` with this
+# minimal file against production without reviewing it: it could reset settings that are not listed here
+# (for example SMTP) to defaults.
+project_id = "student-complaint-system"
+
+[auth]
+site_url = "http://localhost:3000"
+additional_redirect_urls = ["http://localhost:3000/auth/callback"]
+# Self-registration at /signup uses the public sign-up API. New accounts are PENDING until an
+# administrator approves them; the database enforces that, not this setting.
+enable_signup = true
+minimum_password_length = 10
+
+[auth.email]
+enable_signup = true
+# No confirmation link: a new account can sign in immediately. Supabase then marks the address as
+# confirmed without proving ownership, so the database (migration 0012) never treats it as proof of
+# identity: linking a pre-registered approved student record this way sends it back to "pending".
+enable_confirmations = false

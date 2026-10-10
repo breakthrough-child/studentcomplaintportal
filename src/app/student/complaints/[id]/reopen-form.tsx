@@ -9,7 +9,7 @@ export function ReopenForm({ complaintId }: { complaintId: string }) {
   const [state, run, pending] = useActionState(reopenAction, initialActionState);
   const err = state.fieldErrors?.reason;
   return (
-    <form action={run} className="space-y-2 rounded-md border border-slate-200 bg-white p-4">
+    <form action={run} className="space-y-2 rounded-xl border border-slate-200 bg-white shadow-sm p-4">
       <input type="hidden" name="complaintId" value={complaintId} />
       <h2 className="font-medium">Not resolved?</h2>
       <label htmlFor="reopen-reason" className="block text-sm">Tell us why this complaint should be reopened.</label>

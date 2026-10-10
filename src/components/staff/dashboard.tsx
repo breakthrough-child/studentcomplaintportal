@@ -7,8 +7,8 @@ const date = (iso: string) => new Date(iso).toLocaleDateString("en-GB", { dateSt
 function Stat({ label, value, href }: { label: string; value: number; href?: string }) {
   const body = (<><dt className="text-sm text-slate-600">{label}</dt><dd className="mt-1 text-2xl font-semibold">{value}</dd></>);
   return href
-    ? <Link href={href} className="block rounded-lg border border-slate-200 bg-white p-4 hover:bg-slate-50"><dl>{body}</dl></Link>
-    : <div className="rounded-lg border border-slate-200 bg-white p-4"><dl>{body}</dl></div>;
+    ? <Link href={href} className="block rounded-xl border border-slate-200 bg-white shadow-sm p-4 hover:bg-slate-50"><dl>{body}</dl></Link>
+    : <div className="rounded-xl border border-slate-200 bg-white shadow-sm p-4"><dl>{body}</dl></div>;
 }
 
 /** Numbers come from SECURITY INVOKER database functions, so they count only authorised complaints. */
@@ -32,7 +32,7 @@ export function StaffDashboardView({ data, complaintsBase }: { data: StaffDashbo
         {recent.state === "error" ? <p role="alert" className="mt-2 text-red-700">{recent.message}</p> : null}
         {recent.state === "empty" ? <p className="mt-2 text-slate-600">No complaints have been shared with you yet.</p> : null}
         {recent.state === "ok" ? (
-          <ul className="mt-2 divide-y divide-slate-200 rounded-md border border-slate-200 bg-white">
+          <ul className="mt-2 divide-y divide-slate-200 rounded-xl border border-slate-200 bg-white shadow-sm">
             {recent.items.slice(0, 8).map((c) => (
               <li key={c.id}>
                 <Link href={`/lecturer/complaints/${c.id}`} className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 hover:bg-slate-50">

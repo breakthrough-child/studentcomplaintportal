@@ -47,11 +47,12 @@ const uuid = z.string().uuid();
 const ts = z.string().min(10);
 export const userRow = z.object({ id: uuid, full_name: z.string(), email: z.string(), role: z.enum(["student", "lecturer", "main_lecturer", "admin"]), is_active: z.boolean(), created_at: ts });
 export const USER_COLUMNS = "id,full_name,email,role,is_active,created_at";
-export const staffDetailRow = z.object({ profile_id: uuid, department_id: uuid.nullable(), title: z.string().nullable(), accepts_complaints: z.boolean() });
-export const STAFF_DETAIL_COLS = "profile_id,department_id,title,accepts_complaints";
+const approval = z.enum(["pending", "approved", "rejected", "suspended"]);
+export const staffDetailRow = z.object({ profile_id: uuid, department_id: uuid.nullable(), title: z.string().nullable(), accepts_complaints: z.boolean(), approval_status: approval });
+export const STAFF_DETAIL_COLS = "profile_id,department_id,title,accepts_complaints,approval_status";
 export const studentRowSchema = z.object({
-  id: uuid, profile_id: uuid.nullable(), school_email: z.string(), full_name: z.string(), registration_number: z.string(),
-  level_id: uuid, department_id: uuid, approval_status: z.enum(["pending", "approved", "rejected", "suspended"]), created_at: ts,
+  id: uuid, profile_id: uuid.nullable(), school_email: z.string(), full_name: z.string(), registration_number: z.string().nullable(),
+  level_id: uuid.nullable(), department_id: uuid.nullable(), approval_status: approval, created_at: ts,
 });
 export const STUDENT_COLS = "id,profile_id,school_email,full_name,registration_number,level_id,department_id,approval_status,created_at";
 export const invitationRowSchema = z.object({ id: uuid, email: z.string(), full_name: z.string(), role: z.enum(["lecturer", "main_lecturer", "admin"]), department_id: uuid.nullable(), title: z.string().nullable(), created_at: ts, consumed_at: ts.nullable() });
@@ -61,6 +62,39 @@ export const ASSIGNMENT_COLS = "id,lecturer_profile_id,scope_type,level_id,depar
 export const auditRowSchema = z.object({ id: uuid, actor_profile_id: uuid.nullable(), action: z.string(), entity_type: z.string(), entity_id: uuid.nullable(), metadata: z.unknown(), created_at: ts });
 export const AUDIT_COLS = "id,actor_profile_id,action,entity_type,entity_id,metadata,created_at";
 export const settingRowSchema = z.object({ key: z.string(), value: z.unknown(), updated_at: ts });
+
+// list_registrations() rows (self-registered and invited students / lecturers).
+export const REGISTRATION_KIND_FILTERS = ["student", "lecturer"] as const;
+export const REGISTRATION_STATUS_FILTERS = ["pending", "approved", "rejected", "suspended", "all"] as const;
+export const registrationRowSchema = z.object({
+  profile_id: uuid, kind: z.enum(REGISTRATION_KIND_FILTERS), role: z.enum(["student", "lecturer", "main_lecturer", "admin"]),
+  full_name: z.string(), email: z.string(), personal_email: z.string().nullable(), identifier: z.string().nullable(),
+  email_verified: z.boolean(), is_active: z.boolean(), approval_status: approval,
+  level_id: uuid.nullable(), department_id: uuid.nullable(), created_at: ts,
+});
+export type RegistrationRow = z.infer<typeof registrationRowSchema>;
+
+/** Page filters for /admin/registrations: status defaults to "pending", kind to both. Never throws. */
+export function registrationFilters(raw: unknown): { status: (typeof REGISTRATION_STATUS_FILTERS)[number]; kind: (typeof REGISTRATION_KIND_FILTERS)[number] | null } {
+  const r = raw && typeof raw === "object" ? (raw as Record<string, unknown>) : {};
+  const one = (v: unknown) => (Array.isArray(v) ? v[0] : v);
+  const status = one(r.status);
+  const kind = one(r.kind);
+  return {
+    status: (REGISTRATION_STATUS_FILTERS as readonly unknown[]).includes(status) ? (status as (typeof REGISTRATION_STATUS_FILTERS)[number]) : "pending",
+    kind: (REGISTRATION_KIND_FILTERS as readonly unknown[]).includes(kind) ? (kind as (typeof REGISTRATION_KIND_FILTERS)[number]) : null,
+  };
+}
+
+// admin_overview_counts(): aggregate numbers only (no complaint content, no identities).
+const overviewRow = z.object({ metric: z.string().regex(/^[a-z_]{1,60}$/), total: z.union([z.number(), z.string().regex(/^\d{1,15}$/)]).transform(Number) });
+/** metric -> count; missing metrics read as 0. null if the rows are malformed (fail closed). */
+export function parseOverview(data: unknown): ((metric: string) => number) | null {
+  const rows = parseList(overviewRow, data);
+  if (!rows) return null;
+  const m = new Map(rows.map((r) => [r.metric, r.total]));
+  return (metric) => m.get(metric) ?? 0;
+}
 
 export type UserRow = z.infer<typeof userRow>;
 export type StudentRow = z.infer<typeof studentRowSchema>;

@@ -29,9 +29,9 @@ export default async function MyComplaintsPage({ searchParams }: { searchParams:
   };
 
   return (
-    <main id="main" className="mx-auto max-w-3xl space-y-6 p-6">
+    <main id="main" className="mx-auto max-w-3xl space-y-6 px-4 py-6 sm:px-6 sm:py-8">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-2xl font-semibold">My complaints</h1>
+        <h1 className="border-l-4 border-gold-500 pl-3 text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">My complaints</h1>
         <Link href="/student/complaints/new" className="rounded-md bg-brand-700 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-800">New complaint</Link>
       </div>
 
@@ -68,7 +68,7 @@ export default async function MyComplaintsPage({ searchParams }: { searchParams:
 
       {result.state === "ok" ? (
         <>
-          <ul className="divide-y divide-slate-200 rounded-md border border-slate-200 bg-white">
+          <ul className="divide-y divide-slate-200 rounded-xl border border-slate-200 bg-white shadow-sm">
             {result.items.map((c) => (
               <li key={c.id}>
                 <Link href={`/student/complaints/${c.id}`} className="block px-4 py-3 hover:bg-slate-50">

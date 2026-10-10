@@ -15,8 +15,8 @@ export default async function LevelPage({ params, searchParams }: { params: Prom
   const level = reference?.levels.find((l) => l.id === levelId);
   if (reference && !level) notFound();
   return (
-    <main id="main" className="mx-auto max-w-6xl space-y-4 p-6">
-      <h1 className="text-2xl font-semibold">{level?.name ?? "Level"}</h1>
+    <main id="main" className="mx-auto max-w-6xl space-y-4 px-4 py-6 sm:px-6 sm:py-8">
+      <h1 className="border-l-4 border-gold-500 pl-3 text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">{level?.name ?? "Level"}</h1>
       <AcademicNav reference={reference} activeLevelId={levelId} activeDepartmentId={result.query.departmentId} />
       <ComplaintList base={`/lecturer/levels/${levelId}`} result={result} reference={reference} fixed={["levelId"]} />
     </main>

@@ -9,14 +9,14 @@ import { sendInvite } from "./invite";
 import { validateStudentCsv, type CsvRowResult } from "./csv";
 import {
   assignmentRow, departmentRow, categoryRow, invitationRow, levelRow, parseAssignment, parseAssignmentDelete, parseAssignmentToggle,
-  parseCategory, parseDepartment, parseInviteStudent, parseLevel, parseResendInvite, parseStaffInvite, parseStudentCreate,
-  parseStudentUpdate, parseUserUpdate, studentInsertRow, studentUpdateRow, userUpdateRow, type AdminState, type Src,
+  parseCategory, parseDepartment, parseInviteStudent, parseLevel, parseResendInvite, parseReview, parseStaffDetails, parseStaffInvite,
+  parseStudentCreate, parseStudentUpdate, parseUserUpdate, reviewArgs, staffDetailsRow, studentInsertRow, studentUpdateRow, userUpdateRow, type AdminState, type Src,
 } from "./schemas";
 import { parseSettingValue } from "./settings";
 import {
   ADMIN_PAGE_SIZE, ASSIGNMENT_COLS, AUDIT_COLS, INVITATION_COLS, STAFF_DETAIL_COLS, STUDENT_COLS, USER_COLUMNS,
-  adminRange, assignmentRowSchema, auditRowSchema, invitationRowSchema, likeTerm, pageOf, parseAdminList, parseList, settingRowSchema,
-  staffDetailRow, studentRowSchema, userRow, type AdminListQuery,
+  adminRange, assignmentRowSchema, auditRowSchema, invitationRowSchema, likeTerm, pageOf, parseAdminList, parseList, registrationFilters,
+  parseOverview, registrationRowSchema, settingRowSchema, staffDetailRow, studentRowSchema, userRow, type AdminListQuery,
 } from "./view";
 
 export const requireAdmin = (): Promise<Profile> => requireRole(["admin"]);
@@ -65,16 +65,20 @@ export async function getAdminDashboard() {
   await requireAdmin();
   const s = await createClient();
   const head = (t: "profiles" | "students" | "staff_invitations" | "lecturer_assignments" | "audit_logs") => s.from(t).select("id", { count: "exact", head: true });
-  const [users, pending, students, invites, assigns, audit] = await Promise.all([
+  const [overview, users, pending, pendingStaff, students, invites, assigns, audit] = await Promise.all([
+    s.rpc("admin_overview_counts"),
     head("profiles"),
-    s.from("students").select("id", { count: "exact", head: true }).eq("approval_status", "pending"),
+    s.from("students").select("id", { count: "exact", head: true }).eq("approval_status", "pending").not("profile_id", "is", null),
+    s.from("staff_details").select("profile_id", { count: "exact", head: true }).eq("approval_status", "pending"),
     head("students"),
     s.from("staff_invitations").select("id", { count: "exact", head: true }).is("consumed_at", null),
     s.from("lecturer_assignments").select("id", { count: "exact", head: true }).eq("is_active", true),
     head("audit_logs"),
   ]);
-  if ([users, pending, students, invites, assigns, audit].some((r) => r.error)) return null;
-  return { users: users.count ?? 0, pendingStudents: pending.count ?? 0, students: students.count ?? 0, openInvitations: invites.count ?? 0, activeAssignments: assigns.count ?? 0, auditEntries: audit.count ?? 0 };
+  if ([overview, users, pending, pendingStaff, students, invites, assigns, audit].some((r) => r.error)) return null;
+  const count = parseOverview(overview.data);
+  if (!count) return null;
+  return { count, users: users.count ?? 0, pendingStudents: pending.count ?? 0, pendingLecturers: pendingStaff.count ?? 0, students: students.count ?? 0, openInvitations: invites.count ?? 0, activeAssignments: assigns.count ?? 0, auditEntries: audit.count ?? 0 };
 }
 
 // ---- users ---------------------------------------------------------------------------------
@@ -100,6 +104,29 @@ export async function updateUser(src: Src): Promise<AdminState> {
   return done(error, "user", "User updated.");
 }
 
+// ---- registration review -------------------------------------------------------------------
+/** Student and lecturer accounts by approval state, through list_registrations() (admin-only in the database). */
+export async function listRegistrations(raw: unknown) {
+  await requireAdmin();
+  const q = parseAdminList(raw);
+  const f = registrationFilters(raw);
+  const [from] = adminRange(q.page);
+  const { data, error } = await (await createClient()).rpc("list_registrations", {
+    p_status: f.status === "all" ? null : f.status, p_kind: f.kind, p_query: q.q ?? null, p_limit: ADMIN_PAGE_SIZE + 1, p_offset: from,
+  });
+  const rows = error ? null : parseList(registrationRowSchema, data);
+  return rows ? { ok: true as const, query: q, filters: f, ...pageOf(rows) } : { ok: false as const, query: q, filters: f };
+}
+/** Approve or reject one registration. review_registration() re-checks the admin role and writes the audit entry. */
+export async function reviewRegistration(src: Src): Promise<AdminState> {
+  await requireAdmin();
+  const p = parseReview(src);
+  if (!p.success) return invalid(p.error);
+  const { error } = await (await createClient()).rpc("review_registration", reviewArgs(p.data));
+  if (error?.code === "22023") return { ok: false, message: "A student needs a level and a department before approval. Choose both and try again." };
+  return done(error, "registration", p.data.decision === "approved" ? "Registration approved." : "Registration rejected.");
+}
+
 // ---- students ------------------------------------------------------------------------------
 export async function listStudents(raw: unknown) {
   await requireAdmin();
@@ -112,7 +139,18 @@ export async function listStudents(raw: unknown) {
   const [from, to] = adminRange(q.page);
   const { data, error } = await query.range(from, to);
   const rows = error ? null : parseList(studentRowSchema, data);
-  return rows ? { ok: true as const, query: q, ...pageOf(rows) } : { ok: false as const, query: q };
+  if (!rows) return { ok: false as const, query: q };
+  const page = pageOf(rows);
+  // Account activation lives on the profile; one extra lookup for the linked rows on this page.
+  const ids = page.items.flatMap((r) => (r.profile_id ? [r.profile_id] : []));
+  const active = new Map<string, boolean>();
+  if (ids.length > 0) {
+    const { data: people, error: pErr } = await s.from("profiles").select("id,is_active").in("id", ids);
+    if (pErr) return { ok: false as const, query: q };
+    for (const p of people ?? []) active.set(p.id, p.is_active);
+  }
+  const items = page.items.map((r) => ({ ...r, profile_active: r.profile_id ? (active.get(r.profile_id) ?? null) : null }));
+  return { ok: true as const, query: q, items, hasMore: page.hasMore };
 }
 export async function createStudent(src: Src): Promise<AdminState> {
   await requireAdmin();
@@ -187,6 +225,15 @@ export async function resendStaffInvite(src: Src): Promise<AdminState> {
   if (error || !data) return { ok: false, message: "There is no open invitation for that email." };
   const sent = await sendInvite(p.data.email);
   return sent.ok ? { ok: true, message: "Invitation e-mail sent again." } : { ok: false, message: sent.message };
+}
+/** Home department, title and "accepts complaints" of a lecturer (RLS: admin only; guard trigger; audited). */
+export async function updateStaffDetails(src: Src): Promise<AdminState> {
+  await requireAdmin();
+  const p = parseStaffDetails(src);
+  if (!p.success) return invalid(p.error);
+  const { data, error } = await (await createClient()).from("staff_details").update(staffDetailsRow(p.data)).eq("profile_id", p.data.profileId).select("profile_id");
+  if (error) return { ok: false, message: mapAdminError(error, "user") };
+  return data && data.length > 0 ? { ok: true, message: "Lecturer details saved." } : { ok: false, message: "That lecturer could not be found." };
 }
 export async function cancelInvitation(src: Src): Promise<AdminState> {
   await requireAdmin();

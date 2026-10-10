@@ -1,12 +1,51 @@
 @import "tailwindcss";
 
-/* One restrained accent (deep teal) on neutral slate. */
+/* Class-based dark mode: <html class="dark"> is set by /theme-init.js before first paint. */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/*
+ * Bowen University colours: navy ("Port Gore", #252569) and yellow ("Selective Yellow", #FFBA00),
+ * accented by white.
+ *
+ *  navy-* / gold-*   fixed brand colours (header, hero, badges); identical in both themes.
+ *  brand-*           the interactive accent used across pages (buttons, links, focus). Port Gore in the
+ *                    light theme; Selective Yellow in the dark theme (see .dark below), so primary
+ *                    buttons read "navy on white" by day and "navy text on yellow" by night.
+ *  white / slate / status colours are redefined for the dark theme below, so every page follows the
+ *  theme without per-page dark: classes.
+ */
 @theme {
-  --color-brand-50: #eef7f8;
-  --color-brand-100: #d5ebee;
-  --color-brand-600: #12717f;
-  --color-brand-700: #0d5964;
-  --color-brand-800: #0b474f;
+  --color-navy-50: #f1f1fa;
+  --color-navy-100: #e1e1f3;
+  --color-navy-200: #c3c3e6;
+  --color-navy-300: #9a9ad3;
+  --color-navy-400: #6767b3;
+  --color-navy-500: #43438f;
+  --color-navy-600: #313177;
+  --color-navy-700: #252569; /* Port Gore */
+  --color-navy-800: #1c1c52;
+  --color-navy-900: #14143d;
+  --color-navy-950: #0b0b26;
+
+  --color-gold-50: #fff9e6;
+  --color-gold-100: #fff0c2;
+  --color-gold-200: #ffe08a;
+  --color-gold-300: #ffd152;
+  --color-gold-400: #ffc526;
+  --color-gold-500: #ffba00; /* Selective Yellow */
+  --color-gold-600: #e0a200;
+  --color-gold-700: #b37f00;
+
+  --color-brand-50: #f1f1fa;
+  --color-brand-100: #e1e1f3;
+  --color-brand-600: #313177;
+  --color-brand-700: #252569;
+  --color-brand-800: #1c1c52;
+
+  --color-page: #f4f5fb;
+  /* True white that never changes with the theme: text and accents on the navy chrome. */
+  --color-snow: #ffffff;
+
   --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
 }
 
@@ -14,20 +53,72 @@
   color-scheme: light;
 }
 
+/* ---- dark theme ---------------------------------------------------------- */
+html.dark {
+  color-scheme: dark;
+
+  --color-page: #0b0b26;
+  /* "white" is the surface colour (cards, inputs); text-white on brand buttons becomes navy on yellow. */
+  --color-white: #14143d;
+
+  --color-brand-50: #1f1f52;
+  --color-brand-100: #2a2a63;
+  --color-brand-600: #ffc526;
+  --color-brand-700: #ffba00;
+  --color-brand-800: #ffd152;
+
+  /* Neutral scale, inverted around the navy surfaces. */
+  --color-slate-50: #1a1a47;
+  --color-slate-100: #212152;
+  --color-slate-200: #2c2c62;
+  --color-slate-300: #3d3d77;
+  --color-slate-400: #6d6d9e;
+  --color-slate-500: #9595bd;
+  --color-slate-600: #b3b3d1;
+  --color-slate-700: #cacae0;
+  --color-slate-800: #dedeec;
+  --color-slate-900: #efeff7;
+
+  /* Status colours: tinted backgrounds, light text. */
+  --color-red-50: #3a1426;
+  --color-red-100: #4a1830;
+  --color-red-200: #6b2238;
+  --color-red-500: #f87171;
+  --color-red-700: #fca5a5;
+  --color-red-800: #fecaca;
+  --color-green-50: #10301f;
+  --color-green-300: #1f6b3d;
+  --color-green-800: #86efac;
+  --color-emerald-50: #0f2f27;
+  --color-emerald-200: #1d5e4b;
+  --color-emerald-800: #6ee7b7;
+  --color-amber-50: #33270b;
+  --color-amber-100: #46350d;
+  --color-amber-300: #7a5a12;
+  --color-amber-800: #fcd34d;
+  --color-amber-900: #fde68a;
+}
+
 html {
   -webkit-text-size-adjust: 100%;
 }
 
 body {
-  background: #f8fafc;
-  color: #0f172a;
+  background: var(--color-page);
+  color: var(--color-slate-900);
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
 }
 
 :focus-visible {
-  outline: 2px solid var(--color-brand-600);
+  outline: 2px solid var(--color-gold-500);
   outline-offset: 2px;
+}
+
+/* Tables scroll inside their card on small screens rather than widening the page. */
+.table-scroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 @media (prefers-reduced-motion: reduce) {

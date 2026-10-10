@@ -11,9 +11,10 @@ export const studentRecordSchema = z.object({
   id: z.string().uuid(),
   full_name: z.string(),
   school_email: z.string(),
-  registration_number: z.string(),
-  level_id: z.string().uuid(),
-  department_id: z.string().uuid(),
+  // Optional at self-registration; level and department are set by an administrator on approval.
+  registration_number: z.string().nullable(),
+  level_id: z.string().uuid().nullable(),
+  department_id: z.string().uuid().nullable(),
   approval_status: z.enum(APPROVAL_STATUSES),
 });
 export type StudentRecord = z.infer<typeof studentRecordSchema>;
@@ -28,7 +29,7 @@ export type StudentAccess =
   | { readonly state: ApprovalStatus; readonly canComplain: boolean; readonly message: string };
 
 const MESSAGES: Readonly<Record<ApprovalStatus, string>> = {
-  pending: "Your registration is waiting for administrator approval. You can submit complaints once it is approved.",
+  pending: "Your account is waiting for administrator approval. You can submit complaints once it is approved.",
   approved: "Your registration is approved.",
   rejected: "Your registration was not approved. Please contact the university administrator.",
   suspended: "Your student access is suspended. Please contact the university administrator.",
@@ -39,6 +40,10 @@ const MESSAGES: Readonly<Record<ApprovalStatus, string>> = {
  * linked to their account, so null means "no record is linked to this account yet".
  * `canComplain` is a display hint; submit_complaint re-checks is_approved_student().
  */
+/** Shown with a pending/approved state when the student has not yet confirmed their e-mail address. */
+export const EMAIL_UNVERIFIED =
+  "Your email address is not confirmed yet. Use the link we sent you; complaints can only be submitted from a confirmed address.";
+
 export function studentAccess(record: StudentRecord | null): StudentAccess {
   if (record === null) {
     return {

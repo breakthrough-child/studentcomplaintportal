@@ -60,7 +60,7 @@ export function StatusForm({ complaintId, options, action }: { complaintId: stri
 export function EscalateForm({ complaintId, action }: { complaintId: string; action: Act }) {
   const [state, run, pending] = useActionState(action, initialActionState);
   return (
-    <details className="rounded-md border border-slate-200 bg-white p-3">
+    <details className="rounded-xl border border-slate-200 bg-white shadow-sm p-3">
       <summary className="cursor-pointer text-sm font-medium">Escalate to a main lecturer</summary>
       <form action={run} className="mt-3 space-y-2">
         <input type="hidden" name="complaintId" value={complaintId} />

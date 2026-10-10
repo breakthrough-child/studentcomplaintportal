@@ -15,8 +15,8 @@ export default async function DepartmentPage({ params, searchParams }: { params:
   const department = reference?.departments.find((d) => d.id === departmentId);
   if (reference && !department) notFound();
   return (
-    <main id="main" className="mx-auto max-w-6xl space-y-4 p-6">
-      <h1 className="text-2xl font-semibold">{department?.name ?? "Department"}</h1>
+    <main id="main" className="mx-auto max-w-6xl space-y-4 px-4 py-6 sm:px-6 sm:py-8">
+      <h1 className="border-l-4 border-gold-500 pl-3 text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">{department?.name ?? "Department"}</h1>
       <AcademicNav reference={reference} activeDepartmentId={departmentId} activeLevelId={result.query.levelId} />
       <ComplaintList base={`/lecturer/departments/${departmentId}`} result={result} reference={reference} fixed={["departmentId"]} />
     </main>

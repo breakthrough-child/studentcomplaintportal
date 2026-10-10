@@ -1,20 +1,20 @@
 // UNVERIFIED: depends on next and react, which could not be installed when this was written.
 import type { Metadata } from "next";
-import { listStaff, loadAdminReference } from "@/lib/admin/data";
+import { listStaff, loadAdminReference, requireAdmin } from "@/lib/admin/data";
 import { AdminForm } from "@/components/admin/admin-form";
 import { Card, Empty, Field, INPUT, LoadError, Page, Table, when } from "@/components/admin/ui";
-import { staffCancelAction, staffInviteAction, staffResendAction } from "../actions";
+import { staffCancelAction, staffDetailsAction, staffInviteAction, staffResendAction, staffUserAction } from "../actions";
 
 export const metadata: Metadata = { title: "Lecturers and staff" };
 
 export default async function LecturersPage() {
-  const [ref, staff] = await Promise.all([loadAdminReference(), listStaff()]);
+  const [me, ref, staff] = await Promise.all([requireAdmin(), loadAdminReference(), listStaff()]);
   if (!ref || !staff.ok) return <Page title="Lecturers and staff"><LoadError /></Page>;
   const dept = new Map(ref.departments.map((d) => [d.id, d.name]));
   const detail = new Map(staff.details.map((d) => [d.profile_id, d]));
   const open = staff.invitations.filter((i) => !i.consumed_at);
   return (
-    <Page title="Lecturers and staff" intro="Staff join by invitation only. The invitation record is created first, then the email is sent; the account is accepted only if the invited email matches.">
+    <Page title="Lecturers and staff" intro="Lecturers can register themselves and stay pending until approved under Registrations. You can also invite staff: the invitation is recorded first, then the email is sent, and the invited role (including main lecturer or administrator) applies only to that email. Main lecturer and administrator roles can never be self-assigned.">
       <Card title="Invite a staff member" id="invite">
         <AdminForm action={staffInviteAction} submit="Send invitation">
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -45,20 +45,50 @@ export default async function LecturersPage() {
       </Card>
       <Card title="Lecturers and main lecturers" id="staff">
         {staff.users.length === 0 ? <Empty>No lecturers yet.</Empty> : (
-          <Table label="Lecturers" head={["Name", "Email", "Role", "Home department", "Title", "Status"]}>
+          <Table label="Lecturers" head={["Lecturer", "Details", "Account"]}>
             {staff.users.map((u) => {
               const d = detail.get(u.id);
               return (
-                <tr key={u.id}>
-                  <td className="px-3 py-2">{u.full_name}</td><td className="px-3 py-2">{u.email}</td><td className="px-3 py-2">{u.role.replace("_", " ")}</td>
-                  <td className="px-3 py-2">{d?.department_id ? dept.get(d.department_id) ?? "—" : "—"}</td><td className="px-3 py-2">{d?.title ?? "—"}</td>
-                  <td className="px-3 py-2">{u.is_active ? "Active" : "Deactivated"}{d && !d.accepts_complaints ? ", not accepting" : ""}</td>
+                <tr key={u.id} className="align-top">
+                  <td className="px-3 py-2">
+                    <span className="block font-medium">{u.full_name}</span>
+                    <span className="block text-slate-600">{u.email}</span>
+                    <span className="block text-xs text-slate-500">
+                      {u.is_active ? "Active" : "Deactivated"}{d && d.approval_status !== "approved" ? ` · ${d.approval_status} (see Registrations)` : ""}
+                      {d && !d.accepts_complaints ? " · not accepting complaints" : ""}
+                    </span>
+                  </td>
+                  <td className="px-3 py-2">
+                    {d ? (
+                      <AdminForm action={staffDetailsAction} submit="Save details" tone="plain" className="flex flex-wrap items-center gap-2">
+                        <input type="hidden" name="profileId" value={u.id} />
+                        <select aria-label={`Home department for ${u.full_name}`} name="departmentId" defaultValue={d.department_id ?? ""} className={INPUT + " !mt-0 w-auto"}>
+                          <option value="">No home department</option>
+                          {ref.departments.filter((x) => x.is_active || x.id === d.department_id).map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}
+                        </select>
+                        <input aria-label={`Title for ${u.full_name}`} name="title" defaultValue={d.title ?? ""} maxLength={100} placeholder="Title" className={INPUT + " !mt-0 w-24"} />
+                        <label className="flex items-center gap-1 text-xs"><input type="checkbox" name="acceptsComplaints" defaultChecked={d.accepts_complaints} /> Accepts complaints</label>
+                      </AdminForm>
+                    ) : <span className="text-slate-500">—</span>}
+                    <span className="sr-only">{d?.department_id ? dept.get(d.department_id) : ""}</span>
+                  </td>
+                  <td className="px-3 py-2">
+                    {u.id === me.id ? <span className="text-slate-500">You</span> : (
+                      <AdminForm action={staffUserAction} submit="Save" tone="plain" className="flex flex-wrap items-center gap-2">
+                        <input type="hidden" name="id" value={u.id} />
+                        <label className="flex items-center gap-1 text-xs"><input type="checkbox" name="isActive" defaultChecked={u.is_active} /> Active</label>
+                        <select aria-label={`Role for ${u.full_name}`} name="role" defaultValue={u.role} className={INPUT + " !mt-0 w-auto"}>
+                          <option value="lecturer">Lecturer</option><option value="main_lecturer">Main lecturer</option>
+                        </select>
+                      </AdminForm>
+                    )}
+                  </td>
                 </tr>
               );
             })}
           </Table>
         )}
-        <p className="mt-2 text-xs text-slate-500">Change role or deactivate accounts under Users; set scopes under Assignments.</p>
+        <p className="mt-2 text-xs text-slate-500">Role changes and (de)activation are checked on the server and in the database (only administrators, never on your own account) and are written to the audit log. Set complaint scopes under Assignments; approve self-registered lecturers under Registrations.</p>
       </Card>
     </Page>
   );

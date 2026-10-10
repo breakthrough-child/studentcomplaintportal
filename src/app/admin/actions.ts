@@ -22,11 +22,15 @@ export const studentUpdateAction = wrap(admin.updateStudent, "/admin/students");
 export const studentInviteAction = wrap(admin.inviteStudent, "/admin/students");
 export const staffInviteAction = wrap(admin.inviteStaff, "/admin/lecturers");
 export const staffResendAction = wrap(admin.resendStaffInvite, "/admin/lecturers");
+export const staffDetailsAction = wrap(admin.updateStaffDetails, "/admin/lecturers");
+export const staffUserAction = wrap(admin.updateUser, "/admin/lecturers");
+export const studentUserAction = wrap(admin.updateUser, "/admin/students");
 export const staffCancelAction = wrap(admin.cancelInvitation, "/admin/lecturers");
 export const assignmentCreateAction = wrap(admin.createAssignment, "/admin/assignments");
 export const assignmentToggleAction = wrap(admin.toggleAssignment, "/admin/assignments");
 export const assignmentDeleteAction = wrap(admin.deleteAssignment, "/admin/assignments");
 export const settingAction = wrap(admin.saveSetting, "/admin/settings");
+export const reviewAction = wrap(admin.reviewRegistration, "/admin/registrations");
 
 export async function importAction(_prev: admin.ImportState, formData: FormData): Promise<admin.ImportState> {
   const file = formData.get("file");

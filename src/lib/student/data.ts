@@ -18,16 +18,23 @@ export async function getStudentContext(): Promise<StudentContext> {
   if (data === null) return { ok: true, record: null, levelName: null, departmentName: null };
   const record = parseStudentRecord(data);
   if (!record) return { ok: false };
+  // A self-registered student has no level / department until an administrator approves them.
   const [level, dept] = await Promise.all([
-    supabase.from("academic_levels").select("name").eq("id", record.level_id).maybeSingle(),
-    supabase.from("departments").select("name").eq("id", record.department_id).maybeSingle(),
+    record.level_id ? supabase.from("academic_levels").select("name").eq("id", record.level_id).maybeSingle() : null,
+    record.department_id ? supabase.from("departments").select("name").eq("id", record.department_id).maybeSingle() : null,
   ]);
   return {
     ok: true,
     record,
-    levelName: level.error ? null : parseName(level.data),
-    departmentName: dept.error ? null : parseName(dept.data),
+    levelName: !level || level.error ? null : parseName(level.data),
+    departmentName: !dept || dept.error ? null : parseName(dept.data),
   };
+}
+
+/** Personal e-mail given at registration (readable only by the student and administrators). */
+export async function getMyPersonalEmail(profileId: string): Promise<string | null> {
+  const { data, error } = await (await createClient()).from("registration_details").select("personal_email").eq("profile_id", profileId).maybeSingle();
+  return !error && data && typeof data.personal_email === "string" ? data.personal_email : null;
 }
 
 /** Links the caller's verified account to the pre-registered record (rate-limited in the database). */

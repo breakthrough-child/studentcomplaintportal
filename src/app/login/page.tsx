@@ -23,13 +23,16 @@ export default async function LoginPage({ searchParams }: { searchParams: Search
   return (
     <AuthCard
       title="Sign in"
-      description="Use the university email address your account was created with."
+      description="Use the school or institutional email address you registered with."
       footer={
         <span className="flex flex-col gap-1">
           <Link href="/forgot-password" className="font-medium text-brand-700 hover:underline">
             Forgot your password?
           </Link>
-          <span>New student? <Link href="/signup" className="font-medium text-brand-700 hover:underline">Create your account</Link></span>
+          <span>
+            New here? <Link href="/signup" className="font-medium text-brand-700 hover:underline">Register as a student</Link> or{" "}
+            <Link href="/signup?as=lecturer" className="font-medium text-brand-700 hover:underline">as a lecturer</Link>
+          </span>
         </span>
       }
     >

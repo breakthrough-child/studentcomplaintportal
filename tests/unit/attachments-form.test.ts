@@ -17,6 +17,9 @@ test("policy comes from settings, is capped at the bucket limit, and falls back 
 });
 test("an untouched file input (one empty, unnamed file) means no attachments", () => {
   assert.equal(selectedFiles([new File([], "")]).length, 0);
+  // Next.js Server Actions turn an untouched file input into an empty file named "undefined".
+  assert.equal(selectedFiles([new File([], "undefined", { type: "application/octet-stream" })]).length, 0);
+  assert.equal(selectedFiles([new File([], "empty.pdf")]).length, 1, "a chosen empty file is still validated (and rejected)");
   assert.equal(selectedFiles(["text", null, 5]).length, 0);
   assert.equal(selectedFiles([file(png(), "a.png", "image/png")]).length, 1);
 });
@@ -25,6 +28,7 @@ test("valid files are prepared with the DETECTED type and a sanitised name", asy
   assert.ok(r.ok);
   if (r.ok) assert.deepEqual([r.files[0]?.displayName, r.files[0]?.mime], ["scan.png", "image/png"]);
   assert.deepEqual(await prepareFiles([], DEFAULT_POLICY), { ok: true, files: [] });
+  assert.deepEqual(await prepareFiles([new File([], "undefined")], DEFAULT_POLICY), { ok: true, files: [] }, "no attachment chosen");
 });
 test("one bad file rejects the whole request (nothing half-saved)", async () => {
   const exe = new TextEncoder().encode("MZ\x90\x00 pretend executable");

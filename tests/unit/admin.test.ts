@@ -170,3 +170,64 @@ test("admin errors map to safe messages and never leak provider text", () => {
   assert.match(mapInviteError({ status: 429 }), /Too many/);
   assert.equal(/smtp|secret|key/i.test(mapInviteError({ status: 500, message: "SMTP secret key bad" })), false);
 });
+
+import { parseReview, reviewArgs, studentUpdateRow } from "../../src/lib/admin/schemas";
+import { registrationFilters, registrationRowSchema, staffDetailRow, studentRowSchema } from "../../src/lib/admin/view";
+
+test("students: level and department may stay unset unless the student is approved, and are never cleared", () => {
+  const pending = parseStudentUpdate(src({ id: U1, approvalStatus: "rejected" }));
+  assert.ok(pending.success);
+  if (pending.success) assert.deepEqual(studentUpdateRow(pending.data), { approval_status: "rejected" });
+  const approveWithout = parseStudentUpdate(src({ id: U1, levelId: "", approvalStatus: "approved" }));
+  assert.equal(approveWithout.success, false);
+  const approve = parseStudentUpdate(src({ id: U1, levelId: U1, departmentId: U2, approvalStatus: "approved" }));
+  assert.ok(approve.success);
+  if (approve.success) assert.deepEqual(studentUpdateRow(approve.data), { approval_status: "approved", level_id: U1, department_id: U2 });
+});
+
+test("registration review: only approve / reject, valid ids; optional scope becomes null", () => {
+  const ok = parseReview(src({ profileId: U1, decision: "approved", levelId: U1, departmentId: "" }));
+  assert.ok(ok.success);
+  if (ok.success) assert.deepEqual(reviewArgs(ok.data), { p_profile_id: U1, p_decision: "approved", p_level_id: U1, p_department_id: null });
+  for (const bad of [{ decision: "suspended" }, { decision: "admin" }, { profileId: "x" }, { decision: undefined }]) {
+    assert.equal(parseReview(src({ profileId: U1, decision: "rejected", ...bad })).success, false, JSON.stringify(bad));
+  }
+});
+
+test("registration list: filters default to pending, both kinds; rows are validated", () => {
+  assert.deepEqual(registrationFilters({}), { status: "pending", kind: null });
+  assert.deepEqual(registrationFilters({ status: "all", kind: ["lecturer"] }), { status: "all", kind: "lecturer" });
+  assert.deepEqual(registrationFilters({ status: "drop table", kind: "admin" }), { status: "pending", kind: null });
+  const row = {
+    profile_id: U1, kind: "student", role: "student", full_name: "A", email: "a@u.edu", personal_email: null, identifier: null,
+    email_verified: false, is_active: true, approval_status: "pending", level_id: null, department_id: null, created_at: "2026-10-10T10:00:00Z",
+  };
+  assert.equal(registrationRowSchema.safeParse(row).success, true);
+  assert.equal(registrationRowSchema.safeParse({ ...row, kind: "admin" }).success, false);
+  assert.equal(studentRowSchema.safeParse({ id: U1, profile_id: U1, school_email: "a@u.edu", full_name: "A", registration_number: null, level_id: null, department_id: null, approval_status: "pending", created_at: "2026-10-10T10:00:00Z" }).success, true);
+  assert.equal(staffDetailRow.safeParse({ profile_id: U1, department_id: null, title: null, accepts_complaints: true, approval_status: "pending" }).success, true);
+});
+
+import { parseStaffDetails, staffDetailsRow } from "../../src/lib/admin/schemas";
+import { parseOverview } from "../../src/lib/admin/view";
+
+test("lecturer details: department optional, title trimmed, approval/role can not be smuggled in", () => {
+  const ok = parseStaffDetails(src({ profileId: U1, departmentId: "", title: "  Dr ", acceptsComplaints: "on" }));
+  assert.ok(ok.success);
+  if (ok.success) assert.deepEqual(staffDetailsRow(ok.data), { department_id: null, title: "Dr", accepts_complaints: true });
+  assert.equal(parseStaffDetails(src({ profileId: "x" })).success, false);
+  const row = ok.success ? staffDetailsRow(ok.data) : {};
+  assert.deepEqual(Object.keys(row).sort(), ["accepts_complaints", "department_id", "title"]);
+});
+
+test("admin overview counts: numbers by metric, missing = 0, malformed fails closed", () => {
+  const n = parseOverview([{ metric: "students_pending", total: 3 }, { metric: "complaints_total", total: "12" }]);
+  assert.ok(n);
+  if (!n) return;
+  assert.equal(n("students_pending"), 3);
+  assert.equal(n("complaints_total"), 12);
+  assert.equal(n("complaints_closed"), 0);
+  assert.equal(parseOverview([{ metric: "x; drop", total: 1 }]), null);
+  assert.equal(parseOverview([{ metric: "a", total: "lots" }]), null);
+  assert.equal(parseOverview(null), null);
+});

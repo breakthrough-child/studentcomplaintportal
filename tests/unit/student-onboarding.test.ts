@@ -37,3 +37,13 @@ test("claim outcomes never distinguish failure reasons", () => {
   assert.equal(claimOutcome(null, { code: "42501", message: "secret detail" }).message, CLAIM_FAILED);
   assert.equal(claimOutcome("true", null).ok, false);
 });
+
+test("a self-registered student record (no number, level or department yet) parses and is pending", () => {
+  const selfRegistered = { ...rec("pending"), registration_number: null, level_id: null, department_id: null };
+  const parsed = parseStudentRecord(selfRegistered);
+  assert.ok(parsed);
+  const access = studentAccess(parsed);
+  assert.equal(access.state, "pending");
+  assert.equal(access.canComplain, false);
+  assert.match(access.message, /approval/);
+});

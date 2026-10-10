@@ -1,9 +1,9 @@
 // Maps database / auth errors from admin writes to safe messages (pure). Raw messages are never shown.
-export type AdminContext = "department" | "level" | "category" | "student" | "invitation" | "user" | "assignment" | "setting";
+export type AdminContext = "department" | "level" | "category" | "student" | "invitation" | "user" | "assignment" | "setting" | "registration";
 
 const NAMES: Record<AdminContext, string> = {
   department: "department", level: "level", category: "category", student: "student",
-  invitation: "invitation", user: "user", assignment: "assignment", setting: "setting",
+  invitation: "invitation", user: "user", assignment: "assignment", setting: "setting", registration: "registration",
 };
 
 const UNIQUE: Record<AdminContext, string> = {
@@ -15,6 +15,7 @@ const UNIQUE: Record<AdminContext, string> = {
   user: "That change conflicts with an existing record.",
   assignment: "That lecturer already has this assignment.",
   setting: "That change conflicts with an existing record.",
+  registration: "That change conflicts with an existing record.",
 };
 
 export function mapAdminError(error: unknown, ctx: AdminContext): string {
@@ -24,6 +25,7 @@ export function mapAdminError(error: unknown, ctx: AdminContext): string {
     case "23503": return `This ${NAMES[ctx]} is still used by other records. Deactivate it instead of deleting it.`;
     case "23514": case "22023": case "22P02": return "Some values are not allowed. Check the form and try again.";
     case "42501": return "You do not have permission to make that change.";
+    case "P0002": return `That ${NAMES[ctx]} no longer exists.`;
     case "55000": case "P0001": return "That change is not allowed (for example, you cannot change your own role or remove the last administrator).";
     default: return "The change could not be saved. Please try again.";
   }

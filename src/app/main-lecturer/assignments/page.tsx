@@ -12,8 +12,8 @@ export default async function MainLecturerAssignments({ searchParams }: { search
     listStaffComplaints({ ...raw, view: "triage" }), loadReference(), listAssignableLecturers(),
   ]);
   return (
-    <main id="main" className="mx-auto max-w-6xl space-y-8 p-6">
-      <h1 className="text-2xl font-semibold">Assignments and escalations</h1>
+    <main id="main" className="mx-auto max-w-6xl space-y-8 px-4 py-6 sm:px-6 sm:py-8">
+      <h1 className="border-l-4 border-gold-500 pl-3 text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">Assignments and escalations</h1>
 
       <section aria-labelledby="queue" className="space-y-3">
         <h2 id="queue" className="font-medium">Complaints waiting for triage</h2>
@@ -24,7 +24,7 @@ export default async function MainLecturerAssignments({ searchParams }: { search
       <section aria-labelledby="lecturers" className="space-y-3">
         <h2 id="lecturers" className="font-medium">Lecturers who can be assigned</h2>
         {lecturers === null ? <p role="alert" className="text-red-700">The list of lecturers could not be loaded.</p> : lecturers.length === 0 ? <p className="text-slate-600">No eligible lecturers.</p> : (
-          <div className="overflow-x-auto rounded-md border border-slate-200 bg-white">
+          <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm">
             <table className="min-w-full text-left text-sm">
               <caption className="sr-only">Assignable lecturers</caption>
               <thead className="bg-slate-50 text-slate-600"><tr><th scope="col" className="px-3 py-2">Lecturer</th><th scope="col" className="px-3 py-2">Home department</th><th scope="col" className="px-3 py-2">Authorised scope</th></tr></thead>

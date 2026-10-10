@@ -9,7 +9,7 @@ export const metadata: Metadata = { title: "Reports" };
 function RollupTable({ title, rows, names }: { title: string; rows: Rollup[] | null; names: Map<string, string> }) {
   if (rows === null) return <p role="alert" className="text-red-700">{title} could not be loaded.</p>;
   return (
-    <div className="overflow-x-auto rounded-md border border-slate-200 bg-white">
+    <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm">
       <table className="min-w-full text-left text-sm">
         <caption className="p-3 text-left font-medium">{title}</caption>
         <thead className="bg-slate-50 text-slate-600"><tr><th scope="col" className="px-3 py-2">Name</th><th scope="col" className="px-3 py-2">Total</th><th scope="col" className="px-3 py-2">Open</th><th scope="col" className="px-3 py-2">Resolved or closed</th></tr></thead>
@@ -29,14 +29,14 @@ export default async function Reports() {
   const deptNames = new Map((r.reference?.departments ?? []).map((d) => [d.id, d.name]));
   const trend = r.trend ?? [];
   return (
-    <main id="main" className="mx-auto max-w-6xl space-y-6 p-6">
-      <h1 className="text-2xl font-semibold">Reports</h1>
+    <main id="main" className="mx-auto max-w-6xl space-y-6 px-4 py-6 sm:px-6 sm:py-8">
+      <h1 className="border-l-4 border-gold-500 pl-3 text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">Reports</h1>
       <p className="text-sm text-slate-600">Figures cover only the complaints you are authorised to see.</p>
 
       {r.totals ? (
         <dl className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           {([["Total", r.totals.total], ["Open", r.totals.new + r.totals.inProgress + r.totals.awaitingStudent], ["Resolved", r.totals.resolved], ["Closed", r.totals.closed]] as const).map(([k, v]) => (
-            <div key={k} className="rounded-lg border border-slate-200 bg-white p-4"><dt className="text-sm text-slate-600">{k}</dt><dd className="mt-1 text-2xl font-semibold">{v}</dd></div>
+            <div key={k} className="rounded-xl border border-slate-200 bg-white shadow-sm p-4"><dt className="text-sm text-slate-600">{k}</dt><dd className="mt-1 text-2xl font-semibold">{v}</dd></div>
           ))}
         </dl>
       ) : <p role="alert" className="text-red-700">The totals could not be loaded.</p>}
@@ -49,7 +49,7 @@ export default async function Reports() {
       <section aria-labelledby="trend">
         <h2 id="trend" className="font-medium">Last 30 days</h2>
         {r.trend === null ? <p role="alert" className="text-red-700">The trend could not be loaded.</p> : (
-          <div className="mt-2 overflow-x-auto rounded-md border border-slate-200 bg-white">
+          <div className="mt-2 overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm">
             <table className="min-w-full text-left text-sm">
               <caption className="sr-only">Complaints submitted and resolved per day</caption>
               <thead className="bg-slate-50 text-slate-600"><tr><th scope="col" className="px-3 py-2">Day (UTC)</th><th scope="col" className="px-3 py-2">Submitted</th><th scope="col" className="px-3 py-2">Resolved</th></tr></thead>
@@ -65,7 +65,7 @@ export default async function Reports() {
       <section aria-labelledby="overdue">
         <h2 id="overdue" className="font-medium">Overdue{r.overdueAfterDays ? ` (no activity for ${r.overdueAfterDays}+ days)` : ""}</h2>
         {r.overdue === null ? <p role="alert" className="text-red-700">Overdue complaints could not be loaded.</p> : r.overdue.length === 0 ? <p className="mt-2 text-slate-600">Nothing is overdue.</p> : (
-          <ul className="mt-2 divide-y divide-slate-200 rounded-md border border-slate-200 bg-white">
+          <ul className="mt-2 divide-y divide-slate-200 rounded-xl border border-slate-200 bg-white shadow-sm">
             {r.overdue.map((o) => <li key={o.id}><Link href={`/lecturer/complaints/${o.id}`} className="flex flex-wrap justify-between gap-2 px-4 py-3 hover:bg-slate-50"><span className="font-medium">{o.reference}</span><span className="text-sm text-slate-600">{o.statusLabel} · {o.priority} · {o.daysInactive} days inactive</span></Link></li>)}
           </ul>
         )}

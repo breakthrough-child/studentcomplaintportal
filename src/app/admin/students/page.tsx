@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 import { listStudents, loadAdminReference } from "@/lib/admin/data";
 import { AdminForm } from "@/components/admin/admin-form";
 import { Card, Empty, Field, INPUT, LoadError, Page, Pager, SearchBar, Table } from "@/components/admin/ui";
-import { studentCreateAction, studentInviteAction, studentUpdateAction } from "../actions";
+import { studentCreateAction, studentInviteAction, studentUpdateAction, studentUserAction } from "../actions";
 import { ImportForm } from "./import-form";
 
 export const metadata: Metadata = { title: "Students" };
@@ -22,7 +22,7 @@ export default async function StudentsPage({ searchParams }: { searchParams: Pro
   const levelName = new Map(ref.levels.map((l) => [l.id, l.name]));
   const deptName = new Map(ref.departments.map((d) => [d.id, d.name]));
   return (
-    <Page title="Students" intro="Register a student's record first; they claim it after signing in with the same school email. Only approved students can submit complaints.">
+    <Page title="Students" intro="Students can register themselves (they appear here as pending; review them under Registrations), or you can register a record here and they claim it by signing up with the same school email. Only approved students can submit complaints.">
       <Card title="Register a student" id="add">
         <AdminForm action={studentCreateAction} submit="Register student">
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -43,18 +43,23 @@ export default async function StudentsPage({ searchParams }: { searchParams: Pro
             {r.items.map((s) => (
               <tr key={s.id} className="align-top">
                 <td className="px-3 py-2"><span className="block font-medium">{s.full_name}</span><span className="text-slate-600">{s.school_email}</span></td>
-                <td className="px-3 py-2">{s.registration_number}</td>
+                <td className="px-3 py-2">{s.registration_number ?? <span className="text-slate-500">Not given</span>}</td>
                 <td className="px-3 py-2">
                   <AdminForm action={studentUpdateAction} submit="Save" tone="plain" className="flex flex-wrap items-center gap-2">
                     <input type="hidden" name="id" value={s.id} />
-                    <select aria-label={`Level for ${s.full_name}`} name="levelId" defaultValue={s.level_id} className={INPUT + " !mt-0 w-auto"}>{levelOptions}</select>
-                    <select aria-label={`Department for ${s.full_name}`} name="departmentId" defaultValue={s.department_id} className={INPUT + " !mt-0 w-auto"}>{deptOptions}</select>
+                    <select aria-label={`Level for ${s.full_name}`} name="levelId" defaultValue={s.level_id ?? ""} className={INPUT + " !mt-0 w-auto"}>{s.level_id ? null : <option value="">Level not set</option>}{levelOptions}</select>
+                    <select aria-label={`Department for ${s.full_name}`} name="departmentId" defaultValue={s.department_id ?? ""} className={INPUT + " !mt-0 w-auto"}>{s.department_id ? null : <option value="">Department not set</option>}{deptOptions}</select>
                     <select aria-label={`Status for ${s.full_name}`} name="approvalStatus" defaultValue={s.approval_status} className={INPUT + " !mt-0 w-auto"}>{APPROVALS.map((a) => <option key={a} value={a}>{a}</option>)}</select>
                   </AdminForm>
-                  <span className="sr-only">{levelName.get(s.level_id)} {deptName.get(s.department_id)}</span>
+                  <span className="sr-only">{s.level_id ? levelName.get(s.level_id) : ""} {s.department_id ? deptName.get(s.department_id) : ""}</span>
                 </td>
                 <td className="px-3 py-2">
-                  {s.profile_id ? "Linked" : (
+                  {s.profile_id ? (
+                    <AdminForm action={studentUserAction} submit="Save" tone="plain" className="flex flex-wrap items-center gap-2">
+                      <input type="hidden" name="id" value={s.profile_id} />
+                      <label className="flex items-center gap-1 text-xs"><input type="checkbox" name="isActive" defaultChecked={s.profile_active ?? true} /> Account active</label>
+                    </AdminForm>
+                  ) : (
                     <AdminForm action={studentInviteAction} submit="Send invitation" tone="plain" className="space-y-1"><input type="hidden" name="id" value={s.id} /></AdminForm>
                   )}
                 </td>

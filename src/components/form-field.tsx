@@ -41,7 +41,7 @@ export function FormField({
         defaultValue={defaultValue}
         aria-invalid={error ? true : undefined}
         aria-describedby={describedBy}
-        className="block w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-base text-slate-900 shadow-sm placeholder:text-slate-400 aria-[invalid=true]:border-red-500 sm:text-sm"
+        className="block w-full rounded-md border border-slate-300 bg-white px-3 py-2.5 text-base text-slate-900 shadow-sm placeholder:text-slate-400 focus:border-brand-600 focus:outline-none focus:ring-2 focus:ring-gold-500/40 aria-[invalid=true]:border-red-500 sm:text-sm"
       />
       {hint ? (
         <p id={hintId} className="text-xs text-slate-500">
@@ -62,7 +62,7 @@ export function SubmitButton({ pending, children }: { pending: boolean; children
     <button
       type="submit"
       disabled={pending}
-      className="inline-flex w-full items-center justify-center rounded-md bg-brand-700 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-brand-800 disabled:cursor-not-allowed disabled:opacity-60"
+      className="inline-flex w-full items-center justify-center rounded-lg bg-brand-700 px-4 py-3 text-sm font-bold text-white shadow-sm transition-colors hover:bg-brand-800 disabled:cursor-not-allowed disabled:opacity-60"
     >
       {pending ? "Please wait…" : children}
     </button>

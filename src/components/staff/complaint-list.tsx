@@ -84,7 +84,7 @@ export function ComplaintList({
 
       {result.state === "ok" ? (
         <>
-          <div className="overflow-x-auto rounded-md border border-slate-200 bg-white">
+          <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm">
             <table className="min-w-full text-left text-sm">
               <caption className="sr-only">Authorised complaints</caption>
               <thead className="bg-slate-50 text-slate-600">

@@ -25,9 +25,14 @@ export type FileLike = { readonly name: string; readonly size: number; readonly 
 const isFileLike = (v: unknown): v is FileLike =>
   typeof v === "object" && v !== null && typeof (v as FileLike).arrayBuffer === "function" && typeof (v as FileLike).name === "string" && typeof (v as FileLike).size === "number";
 
-/** Entries of the file field that are real, non-empty files (an untouched file input submits one empty file). */
+/**
+ * Entries of the file field that the user actually chose. An untouched file input still submits one empty
+ * placeholder entry: browsers name it "", and Next.js Server Actions deliver it as an empty file named
+ * "undefined". Both are skipped, so attachments stay optional. A real, chosen empty file keeps its name and
+ * is still reported as empty by validateUpload.
+ */
 export function selectedFiles(values: readonly unknown[]): FileLike[] {
-  return values.filter(isFileLike).filter((f) => f.size > 0 || f.name !== "");
+  return values.filter(isFileLike).filter((f) => !(f.size === 0 && (f.name === "" || f.name === "undefined")));
 }
 
 export type PreparedFile = { readonly displayName: string; readonly mime: string; readonly size: number; readonly bytes: Uint8Array };

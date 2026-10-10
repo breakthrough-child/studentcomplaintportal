@@ -2,14 +2,14 @@
 import Link from "next/link";
 import { adminHref, type AdminListQuery } from "@/lib/admin/view";
 
-export const INPUT = "mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm";
+export const INPUT = "mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-brand-600 focus:outline-none focus:ring-2 focus:ring-gold-500/40";
 
 export function Page({ title, intro, children }: { title: string; intro?: string; children: React.ReactNode }) {
   return (
-    <main id="main" className="mx-auto max-w-6xl space-y-6 p-4 sm:p-6">
-      <header>
-        <h1 className="text-2xl font-semibold">{title}</h1>
-        {intro ? <p className="mt-1 text-sm text-slate-600">{intro}</p> : null}
+    <main id="main" className="mx-auto max-w-6xl space-y-6 px-4 py-6 sm:px-6 sm:py-8">
+      <header className="border-l-4 border-gold-500 pl-3">
+        <h1 className="text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">{title}</h1>
+        {intro ? <p className="mt-1 max-w-3xl text-sm text-slate-600">{intro}</p> : null}
       </header>
       {children}
     </main>
@@ -18,8 +18,8 @@ export function Page({ title, intro, children }: { title: string; intro?: string
 
 export function Card({ title, id, children }: { title: string; id: string; children: React.ReactNode }) {
   return (
-    <section aria-labelledby={id} className="rounded-md border border-slate-200 bg-white p-4">
-      <h2 id={id} className="mb-3 font-medium">{title}</h2>
+    <section aria-labelledby={id} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+      <h2 id={id} className="mb-3 font-semibold text-slate-900">{title}</h2>
       {children}
     </section>
   );
@@ -45,10 +45,10 @@ export function LoadError() {
 
 export function Table({ head, children, label }: { head: string[]; children: React.ReactNode; label: string }) {
   return (
-    <div className="overflow-x-auto rounded-md border border-slate-200 bg-white">
+    <div className="table-scroll rounded-xl border border-slate-200 bg-white shadow-sm">
       <table className="min-w-full text-left text-sm">
         <caption className="sr-only">{label}</caption>
-        <thead className="bg-slate-50 text-xs uppercase text-slate-600"><tr>{head.map((h) => <th key={h} scope="col" className="px-3 py-2 font-medium">{h}</th>)}</tr></thead>
+        <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-600"><tr>{head.map((h) => <th key={h} scope="col" className="px-3 py-2 font-medium">{h}</th>)}</tr></thead>
         <tbody className="divide-y divide-slate-100">{children}</tbody>
       </table>
     </div>
@@ -57,16 +57,16 @@ export function Table({ head, children, label }: { head: string[]; children: Rea
 
 export function SearchBar({ base, query, filters }: { base: string; query: AdminListQuery; filters?: readonly { value: string; label: string }[] }) {
   return (
-    <form method="get" action={base} className="flex flex-wrap items-end gap-2" role="search">
-      <div><label htmlFor="q" className="block text-xs font-medium">Search</label><input id="q" name="q" defaultValue={query.q ?? ""} maxLength={80} className="mt-1 rounded-md border border-slate-300 px-3 py-2 text-sm" /></div>
+    <form method="get" action={base} className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-end" role="search">
+      <div className="sm:w-64"><label htmlFor="q" className="block text-xs font-medium text-slate-700">Search</label><input id="q" name="q" defaultValue={query.q ?? ""} maxLength={80} className={INPUT} /></div>
       {filters ? (
-        <div><label htmlFor="filter" className="block text-xs font-medium">Filter</label>
-          <select id="filter" name="filter" defaultValue={query.filter ?? ""} className="mt-1 rounded-md border border-slate-300 px-3 py-2 text-sm">
+        <div className="sm:w-56"><label htmlFor="filter" className="block text-xs font-medium text-slate-700">Filter</label>
+          <select id="filter" name="filter" defaultValue={query.filter ?? ""} className={INPUT}>
             <option value="">All</option>
             {filters.map((f) => <option key={f.value} value={f.value}>{f.label}</option>)}
           </select></div>
       ) : null}
-      <button type="submit" className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-semibold hover:bg-slate-50">Apply</button>
+      <button type="submit" className="rounded-md bg-brand-700 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-800">Apply</button>
     </form>
   );
 }

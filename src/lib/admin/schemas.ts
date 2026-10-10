@@ -111,16 +111,28 @@ export const parseStudentCreate = (s: Src) => studentCreateSchema.safeParse(pick
 export const studentInsertRow = (i: z.infer<typeof studentCreateSchema>) =>
   ({ school_email: i.schoolEmail, full_name: i.fullName, registration_number: i.registrationNumber, level_id: i.levelId, department_id: i.departmentId, approval_status: i.approvalStatus }) as const;
 
+// Self-registered students have no level / department yet, so both may be left unset, except for
+// approval (the database enforces the same rule with students_approved_has_scope).
 export const studentUpdateSchema = z
   .object({
     id: requiredUuid("Invalid student"),
-    levelId: requiredUuid("Choose a level"),
-    departmentId: requiredUuid("Choose a department"),
+    levelId: optionalUuidField("Choose a valid level"),
+    departmentId: optionalUuidField("Choose a valid department"),
     approvalStatus: z.enum(APPROVALS, { errorMap: () => ({ message: "Choose a status" }) }),
   })
-  .strict();
+  .strict()
+  .superRefine((v, ctx) => {
+    if (v.approvalStatus !== "approved") return;
+    if (!v.levelId) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["levelId"], message: "Choose a level before approving" });
+    if (!v.departmentId) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["departmentId"], message: "Choose a department before approving" });
+  });
 export const parseStudentUpdate = (s: Src) => studentUpdateSchema.safeParse(pick(s, ["id", "levelId", "departmentId", "approvalStatus"]));
-export const studentUpdateRow = (i: z.infer<typeof studentUpdateSchema>) => ({ level_id: i.levelId, department_id: i.departmentId, approval_status: i.approvalStatus }) as const;
+/** An unset level / department is left as it is, never cleared. */
+export const studentUpdateRow = (i: z.infer<typeof studentUpdateSchema>) => ({
+  approval_status: i.approvalStatus,
+  ...(i.levelId ? { level_id: i.levelId } : {}),
+  ...(i.departmentId ? { department_id: i.departmentId } : {}),
+});
 
 export const inviteStudentSchema = z.object({ id: requiredUuid("Invalid student") }).strict();
 export const parseInviteStudent = (s: Src) => inviteStudentSchema.safeParse(pick(s, ["id"]));
@@ -148,6 +160,20 @@ export const invitationRow = (i: z.infer<typeof staffInviteSchema>) =>
 
 export const resendInviteSchema = z.object({ email }).strict();
 export const parseResendInvite = (s: Src) => resendInviteSchema.safeParse(pick(s, ["email"]));
+
+// ---- lecturer details (admin edit) ------------------------------------------------------
+export const staffDetailsSchema = z
+  .object({
+    profileId: requiredUuid("Invalid lecturer"),
+    departmentId: optionalUuidField("Choose a valid department"),
+    title: optionalLine("a title", 100),
+    acceptsComplaints: checkbox,
+  })
+  .strict();
+export const parseStaffDetails = (s: Src) => staffDetailsSchema.safeParse(pick(s, ["profileId", "departmentId", "title", "acceptsComplaints"]));
+/** Only these three columns; approval goes through review_registration, role/activation through Users. */
+export const staffDetailsRow = (i: z.infer<typeof staffDetailsSchema>) =>
+  ({ department_id: i.departmentId, title: i.title, accepts_complaints: i.acceptsComplaints }) as const;
 
 // ---- users ------------------------------------------------------------------------------
 export const CHANGEABLE_ROLES = ["lecturer", "main_lecturer"] as const;
@@ -192,6 +218,21 @@ export const assignmentToggleSchema = z.object({ id: requiredUuid("Invalid assig
 export const parseAssignmentToggle = (s: Src) => assignmentToggleSchema.safeParse(pick(s, ["id", "isActive"]));
 export const assignmentDeleteSchema = z.object({ id: requiredUuid("Invalid assignment"), confirm: checkbox.refine((v) => v, "Tick the box to confirm") }).strict();
 export const parseAssignmentDelete = (s: Src) => assignmentDeleteSchema.safeParse(pick(s, ["id", "confirm"]));
+
+// ---- registration review (self-registered students and lecturers) ----------------------
+export const REVIEW_DECISIONS = ["approved", "rejected"] as const;
+export const reviewSchema = z
+  .object({
+    profileId: requiredUuid("Invalid account"),
+    decision: z.enum(REVIEW_DECISIONS, { errorMap: () => ({ message: "Choose approve or reject" }) }),
+    levelId: optionalUuidField("Choose a valid level"),
+    departmentId: optionalUuidField("Choose a valid department"),
+  })
+  .strict();
+export const parseReview = (s: Src) => reviewSchema.safeParse(pick(s, ["profileId", "decision", "levelId", "departmentId"]));
+/** Arguments for review_registration(); the database re-checks everything (admin, scope for students). */
+export const reviewArgs = (i: z.infer<typeof reviewSchema>) =>
+  ({ p_profile_id: i.profileId, p_decision: i.decision, p_level_id: i.levelId, p_department_id: i.departmentId }) as const;
 
 export type AdminState = {
   readonly ok: boolean;

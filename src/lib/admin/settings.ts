@@ -15,6 +15,7 @@ export const SETTING_DEFS: readonly SettingDef[] = [
   { key: "max_request_bytes", label: "Largest upload request (bytes)", help: "Total size of one upload request. Your host may enforce a smaller limit.", kind: "int", min: 1024, max: 100 * 1024 * 1024 },
   { key: "allowed_attachment_mime_types", label: "Allowed attachment types", help: "Only types the server can verify by file signature can be enabled.", kind: "mimes" },
   { key: "allowed_student_email_domains", label: "Allowed student email domains", help: "One per line. Empty means any domain is accepted when registering students.", kind: "domains" },
+  { key: "self_registration_enabled", label: "Students and lecturers may register themselves", help: "New accounts are always pending until an administrator approves them. Turning this off does not affect invitations.", kind: "bool" },
   { key: "allow_student_scope_override", label: "Students may choose another level or department", help: "Keeps cross-department complaints possible.", kind: "bool" },
   { key: "complaints_per_hour", label: "Complaints per student per hour", help: "Rate limit.", kind: "int", min: 1, max: 1000 },
   { key: "messages_per_minute", label: "Messages per user per minute", help: "Rate limit.", kind: "int", min: 1, max: 1000 },

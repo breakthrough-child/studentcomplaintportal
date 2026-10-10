@@ -95,13 +95,17 @@ insert into public.students (school_email, full_name, registration_number, level
 select tap_lite.is_equal((select registration_number from public.students where school_email = 'a@test.example'),
   'TST/0001', 'A7 registration numbers are normalised to upper case');
 
+-- Created unconfirmed, then confirmed by "clicking the link" (an UPDATE), which is what proves
+-- mailbox ownership since migration 0012 (an auto-confirmed sign-up does not).
 insert into auth.users (id, email, email_confirmed_at)
-select f.v, e.email, case when e.confirmed then now() end
+select f.v, e.email, null
 from (values ('studA','a@test.example',true), ('studB','b@test.example',true),
              ('studPending','pending@test.example',true), ('studUnconf','unconf@test.example',false),
              ('studD','d@test.example',false), ('studF','f@test.example',true),
              ('studG','g@test.example',true)) e(k, email, confirmed)
 join tap_lite.fx f on f.k = e.k;
+update auth.users set email_confirmed_at = now()
+ where id in (select v from tap_lite.fx where k in ('studA', 'studB', 'studPending', 'studF', 'studG'));
 
 select tap_lite.is_equal((select profile_id from public.students where school_email = 'a@test.example'),
   tap_lite.id('studA'), 'A8 confirmed sign-up is linked to its pre-registered student record');
@@ -776,10 +780,11 @@ select tap_lite.as_postgres();
 select tap_lite.is_equal(
   (select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
     where n.nspname = 'public' and p.prosecdef
+      and p.proname <> 'registration_options'  -- the one deliberate exception (0013), tested in section Q
       and (has_function_privilege('anon', p.oid, 'execute')
            or exists (select 1 from aclexplode(coalesce(p.proacl, acldefault('f', p.proowner))) a
                       where a.grantee = 0 and a.privilege_type = 'EXECUTE'))),
-  0::bigint, 'K1 no SECURITY DEFINER function in public is executable by anon or PUBLIC');
+  0::bigint, 'K1 no SECURITY DEFINER function in public is executable by anon or PUBLIC (except registration_options)');
 select tap_lite.is_equal(
   (select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
     where n.nspname = 'public' and p.proname like '\_%' and has_function_privilege('authenticated', p.oid, 'execute')),
@@ -831,6 +836,368 @@ select tap_lite.throws($$select * from public.list_assignable_lecturers()$$, '42
 select tap_lite.as_anon();
 select tap_lite.throws($$select * from public.list_assignable_lecturers()$$, '42501',
   'L9 signed-out visitors cannot list assignable lecturers');
+
+-- ================= M. OPEN SELF-REGISTRATION + APPROVAL (migration 0011) =====
+select tap_lite.as_postgres();
+insert into tap_lite.fx (k, v) values
+  ('regStud',    'a1000000-0000-0000-0000-0000000000a1'),
+  ('regStud2',   'a1000000-0000-0000-0000-0000000000a2'),
+  ('regLec',     'a1000000-0000-0000-0000-0000000000a3'),
+  ('regLec2',    'a1000000-0000-0000-0000-0000000000a4'),
+  ('regAdmin',   'a1000000-0000-0000-0000-0000000000a5'),
+  ('regUnconf',  'a1000000-0000-0000-0000-0000000000a6'),
+  ('regInvited', 'a1000000-0000-0000-0000-0000000000a7');
+
+insert into auth.users (id, email, email_confirmed_at, raw_user_meta_data) values
+  (tap_lite.id('regStud'), 'reg.student@uni.test', now(),
+   ('{"registration_type":"student","full_name":"  Reg   Student ","identifier":"reg/0001","personal_email":"Reg.Personal@Mail.Example"}'::jsonb || jsonb_build_object('level_id', tap_lite.id('L200'), 'department_id', tap_lite.id('D_TCS')))),
+  (tap_lite.id('regStud2'), 'reg.student2@uni.test', now(),
+   ('{"registration_type":"student","full_name":"Reg Student Two"}'::jsonb || jsonb_build_object('level_id', tap_lite.id('L200'), 'department_id', tap_lite.id('D_TCS')))),
+  (tap_lite.id('regLec'), 'reg.lecturer@uni.test', now(),
+   ('{"registration_type":"lecturer","full_name":"Reg Lecturer","identifier":"stf-77","role":"admin"}'::jsonb || jsonb_build_object('department_id', tap_lite.id('D_TENG')))),
+  (tap_lite.id('regLec2'), 'reg.lecturer2@uni.test', now(),
+   ('{"registration_type":"lecturer","full_name":"Reg Lecturer Two"}'::jsonb || jsonb_build_object('department_id', tap_lite.id('D_TENG')))),
+  (tap_lite.id('regUnconf'), 'reg.unconf@uni.test', null,
+   ('{"registration_type":"student","full_name":"Reg Unconfirmed"}'::jsonb || jsonb_build_object('level_id', tap_lite.id('L200'), 'department_id', tap_lite.id('D_TCS'))));
+
+select tap_lite.is_equal((select role::text from public.profiles where id = tap_lite.id('regStud')), 'student',
+  'M1 a student can register without a pre-registered record or invitation');
+select tap_lite.ok((select approval_status = 'pending' and profile_id = tap_lite.id('regStud')
+                           and registration_number = 'REG/0001' and level_id = tap_lite.id('L200') and department_id = tap_lite.id('D_TCS')
+                           and full_name = 'Reg Student'
+                    from public.students where school_email = 'reg.student@uni.test'),
+  'M2 the self-registered student record is linked, PENDING, normalised, with the level and department chosen at sign-up');
+select tap_lite.is_equal((select registration_number from public.students where profile_id = tap_lite.id('regStud2')), null::text,
+  'M3 the registration number is optional');
+select tap_lite.is_equal((select personal_email from public.registration_details where profile_id = tap_lite.id('regStud')),
+  'reg.personal@mail.example', 'M4 the optional personal e-mail is stored (normalised) outside the profile');
+select tap_lite.is_equal((select role::text from public.profiles where id = tap_lite.id('regLec')), 'lecturer',
+  'M5 a "role" in sign-up metadata is ignored: a lecturer registration is only ever a lecturer');
+select tap_lite.ok((select approval_status = 'pending' from public.staff_details where profile_id = tap_lite.id('regLec'))
+                   and (select staff_number = 'STF-77' from public.registration_details where profile_id = tap_lite.id('regLec')),
+  'M6 a self-registered lecturer is PENDING and keeps the optional staff number');
+select tap_lite.throws($$insert into auth.users (id, email, raw_user_meta_data)
+  values (tap_lite.id('regAdmin'), 'reg.admin@uni.test', '{"registration_type":"admin","full_name":"Wannabe Admin"}')$$,
+  '42501', 'M7 nobody can self-register as an administrator');
+select tap_lite.throws($$insert into auth.users (id, email, raw_user_meta_data)
+  values (tap_lite.id('regAdmin'), 'reg.admin@uni.test', '{"registration_type":"main_lecturer","full_name":"Wannabe Main"}')$$,
+  '42501', 'M8 nobody can self-register as a main lecturer');
+select tap_lite.throws($$insert into auth.users (id, email, raw_user_meta_data)
+  values (tap_lite.id('regAdmin'), 'reg.admin@uni.test', ('{"registration_type":"student","full_name":"   "}'::jsonb || jsonb_build_object('level_id', tap_lite.id('L200'), 'department_id', tap_lite.id('D_TCS'))))$$,
+  '22023', 'M9 a full name is required');
+select tap_lite.throws($$insert into auth.users (id, email, raw_user_meta_data)
+  values (tap_lite.id('regAdmin'), 'reg.admin@uni.test', ('{"registration_type":"student","full_name":"X","identifier":"<script>"}'::jsonb || jsonb_build_object('level_id', tap_lite.id('L200'), 'department_id', tap_lite.id('D_TCS'))))$$,
+  '22023', 'M10 a malformed registration number is rejected');
+select tap_lite.throws($$insert into auth.users (id, email, raw_user_meta_data)
+  values (tap_lite.id('regAdmin'), 'reg.admin@uni.test', ('{"registration_type":"student","full_name":"X","identifier":"REG/0001"}'::jsonb || jsonb_build_object('level_id', tap_lite.id('L200'), 'department_id', tap_lite.id('D_TCS'))))$$,
+  '23505', 'M11 a registration number already in use is rejected');
+update public.app_settings set value = 'false'::jsonb where key = 'self_registration_enabled';
+select tap_lite.throws($$insert into auth.users (id, email, raw_user_meta_data)
+  values (tap_lite.id('regAdmin'), 'reg.admin@uni.test', ('{"registration_type":"student","full_name":"X"}'::jsonb || jsonb_build_object('level_id', tap_lite.id('L200'), 'department_id', tap_lite.id('D_TCS'))))$$,
+  '42501', 'M12 administrators can switch self-registration off');
+update public.app_settings set value = 'true'::jsonb where key = 'self_registration_enabled';
+
+-- An invitation still wins over self-registration metadata (role comes from the invitation).
+insert into public.staff_invitations (email, full_name, role) values ('reg.invited@uni.test', 'Invited Main', 'main_lecturer');
+insert into auth.users (id, email, email_confirmed_at, raw_user_meta_data)
+values (tap_lite.id('regInvited'), 'reg.invited@uni.test', now(), ('{"registration_type":"student","full_name":"Ignored"}'::jsonb || jsonb_build_object('level_id', tap_lite.id('L200'), 'department_id', tap_lite.id('D_TCS'))));
+select tap_lite.ok((select role = 'main_lecturer' and full_name = 'Invited Main' from public.profiles where id = tap_lite.id('regInvited'))
+                   and (select approval_status = 'approved' from public.staff_details where profile_id = tap_lite.id('regInvited')),
+  'M13 an invitation still takes precedence and is approved by the invitation itself');
+select tap_lite.ok(exists (select 1 from public.audit_logs where action = 'registration.submitted' and entity_id = tap_lite.id('regLec')),
+  'M14 every self-registration is recorded in the audit log');
+
+-- Pending student: may sign in and see their own state, nothing protected.
+select tap_lite.as_user(tap_lite.id('regStud'));
+select tap_lite.is_equal(public.is_approved_student(), false, 'M15 a pending student is not an approved student');
+select tap_lite.is_equal(public.my_approval_status(), 'pending', 'M16 a pending student is told their status');
+select tap_lite.rows_are($$select 1 from public.students where profile_id = tap_lite.id('regStud')$$, 1,
+  'M17 a pending student can read their own record');
+select tap_lite.throws($$select * from public.submit_complaint('Pending student complaint', 'This should never be accepted.',
+  tap_lite.id('catAcad'), tap_lite.id('lecTarget'), tap_lite.id('L200'), tap_lite.id('D_TCS'))$$,
+  '42501', 'M18 a pending student cannot submit a complaint');
+select tap_lite.throws($$select * from public.search_lecturers()$$, '42501', 'M19 a pending student cannot search lecturers');
+select tap_lite.rows_are($$select 1 from public.complaints$$, 0, 'M20 a pending student sees no complaints');
+
+-- Pending lecturer: signed in, can read own profile, no staff privileges at all.
+select tap_lite.as_user(tap_lite.id('regLec'));
+select tap_lite.is_equal(public.current_user_role(), null::public.user_role, 'M21 a pending lecturer has no effective role');
+select tap_lite.is_equal(public.my_approval_status(), 'pending', 'M22 a pending lecturer is told their status');
+select tap_lite.rows_are($$select 1 from public.profiles where id = tap_lite.id('regLec')$$, 1,
+  'M23 a pending lecturer can read their own profile');
+select tap_lite.rows_are($$select 1 from public.profiles where id <> tap_lite.id('regLec')$$, 0,
+  'M24 a pending lecturer cannot read anyone else''s profile');
+select tap_lite.rows_are($$select 1 from public.complaints$$, 0, 'M25 a pending lecturer sees no complaints');
+select tap_lite.rows_are($$select 1 from public.complaint_messages$$, 0, 'M26 a pending lecturer sees no complaint messages');
+select tap_lite.rows_are($$select 1 from public.students$$, 0, 'M27 a pending lecturer sees no student records');
+select tap_lite.throws($$select public.post_message(tap_lite.id('c1'), 'pending lecturer message')$$, null,
+  'M28 a pending lecturer cannot post to a complaint');
+select tap_lite.throws($$update public.staff_details set approval_status = 'approved' where profile_id = tap_lite.id('regLec')$$,
+  '42501', 'M29 a pending lecturer cannot approve themselves');
+select tap_lite.throws($$select public.review_registration(tap_lite.id('regLec'), 'approved')$$,
+  '42501', 'M30 only administrators can review registrations');
+select tap_lite.as_user(tap_lite.id('studA'));
+select tap_lite.rows_are($$select 1 from public.search_lecturers('Reg Lecturer')$$, 0,
+  'M31 pending lecturers cannot be chosen as complaint recipients');
+select tap_lite.rows_are($$select 1 from public.registration_details$$, 0,
+  'M32 personal registration details are not visible to other users');
+select tap_lite.throws($$select * from public.list_registrations()$$, '42501', 'M33 students cannot list registrations');
+select tap_lite.as_user(tap_lite.id('lecMain'));
+select tap_lite.rows_are($$select 1 from public.list_assignable_lecturers('Reg Lecturer')$$, 0,
+  'M34 pending lecturers are not assignable');
+
+-- Administrator review.
+select tap_lite.as_user(tap_lite.id('admin1'));
+select tap_lite.throws($$insert into public.lecturer_assignments (lecturer_profile_id, scope_type)
+  values (tap_lite.id('regLec'), 'institution')$$, '22023', 'M35 pending lecturers cannot be given an assignment');
+select tap_lite.ok((select count(*) from public.list_registrations('pending') where profile_id in
+                     (tap_lite.id('regStud'), tap_lite.id('regLec'), tap_lite.id('regUnconf'))) = 3,
+  'M36 administrators see pending student and lecturer registrations');
+select tap_lite.ok((select email_verified = false from public.list_registrations('pending', 'student', 'Unconfirmed'))
+                   and (select personal_email = 'reg.personal@mail.example' from public.list_registrations('pending', 'student', 'REG/0001')),
+  'M37 the review list shows e-mail verification and the private details to administrators');
+select tap_lite.as_postgres();
+update public.students set level_id = null where profile_id = tap_lite.id('regStud2');
+select tap_lite.as_user(tap_lite.id('admin1'));
+select tap_lite.throws($$select public.review_registration(tap_lite.id('regStud2'), 'approved')$$,
+  '22023', 'M38 a student cannot be approved without a level and department');
+select tap_lite.throws($$select public.review_registration(tap_lite.id('regStud'), 'suspended')$$,
+  '22023', 'M39 review decisions are only approve or reject');
+select tap_lite.throws($$select public.review_registration(tap_lite.id('admin1'), 'rejected')$$,
+  '42501', 'M40 administrators cannot review their own account');
+select tap_lite.lives($$select public.review_registration(tap_lite.id('regStud'), 'approved', tap_lite.id('L200'), tap_lite.id('D_TCS'))$$,
+  'M41 an administrator approves a student, setting level and department');
+select tap_lite.lives($$select public.review_registration(tap_lite.id('regLec'), 'approved', null, tap_lite.id('D_TENG'))$$,
+  'M42 an administrator approves a lecturer');
+select tap_lite.lives($$select public.review_registration(tap_lite.id('regLec2'), 'rejected')$$,
+  'M43 an administrator rejects a lecturer');
+select tap_lite.lives($$select public.review_registration(tap_lite.id('regUnconf'), 'approved', tap_lite.id('L100'), tap_lite.id('D_TCS'))$$,
+  'M44 approval does not depend on e-mail verification (they are separate)');
+select tap_lite.is_equal((select count(*) from public.audit_logs
+                           where action in ('registration.approved', 'registration.rejected')
+                             and actor_profile_id = tap_lite.id('admin1')
+                             and entity_id in (tap_lite.id('regStud'), tap_lite.id('regLec'), tap_lite.id('regLec2'), tap_lite.id('regUnconf'))),
+  4::bigint, 'M45 every review decision is in the audit log with the administrator as actor');
+select tap_lite.ok((select approved_by = tap_lite.id('admin1') and approved_at is not null
+                    from public.staff_details where profile_id = tap_lite.id('regLec')),
+  'M46 staff approval is stamped with who approved and when');
+
+select tap_lite.as_user(tap_lite.id('regStud'));
+select tap_lite.is_equal(public.is_approved_student(), true, 'M47 an approved, verified student is an approved student');
+select tap_lite.as_user(tap_lite.id('regUnconf'));
+select tap_lite.is_equal(public.is_approved_student(), false, 'M48 approval alone does not bypass e-mail verification');
+select tap_lite.as_user(tap_lite.id('regLec'));
+select tap_lite.is_equal(public.current_user_role()::text, 'lecturer', 'M49 an approved lecturer gets the lecturer role (never more)');
+select tap_lite.as_user(tap_lite.id('regLec2'));
+select tap_lite.ok(public.current_user_role() is null and public.my_approval_status() = 'rejected',
+  'M50 a rejected lecturer still has no staff privileges');
+select tap_lite.as_user(tap_lite.id('studA'));
+select tap_lite.rows_are($$select 1 from public.search_lecturers('Reg Lecturer')$$, 1,
+  'M51 an approved lecturer becomes selectable');
+select tap_lite.as_postgres();
+select tap_lite.throws($$update public.students set level_id = null where profile_id = tap_lite.id('regStud')$$,
+  '23514', 'M52 an approved student must keep a level and department');
+
+-- ======================== N. PROFILE PICTURES (migration 0011) ===============
+select tap_lite.is_equal((select public from storage.buckets where id = 'avatars'), false, 'N1 the avatar bucket is private');
+insert into tap_lite.fx (k, v) values ('av1', 'b2000000-0000-0000-0000-000000000001'), ('av2', 'b2000000-0000-0000-0000-000000000002');
+select tap_lite.as_user(tap_lite.id('regStud'));
+select tap_lite.lives($$insert into storage.objects (bucket_id, name) values ('avatars', tap_lite.id('regStud')::text || '/' || tap_lite.id('av1')::text)$$,
+  'N2 a user can upload a picture into their own folder');
+select tap_lite.throws($$insert into storage.objects (bucket_id, name) values ('avatars', tap_lite.id('studA')::text || '/' || tap_lite.id('av2')::text)$$,
+  '42501', 'N3 a user cannot upload into someone else''s folder');
+select tap_lite.throws($$select public.set_my_avatar(tap_lite.id('studA')::text || '/' || tap_lite.id('av1')::text)$$,
+  '22023', 'N4 a user cannot point their profile at someone else''s file');
+select tap_lite.throws($$select public.set_my_avatar(tap_lite.id('regStud')::text || '/' || tap_lite.id('av2')::text)$$,
+  'P0002', 'N5 a user cannot point their profile at a file that was not uploaded');
+select tap_lite.is_equal(public.set_my_avatar(tap_lite.id('regStud')::text || '/' || tap_lite.id('av1')::text), null::text,
+  'N6 a user can set their uploaded picture');
+select tap_lite.is_equal((select avatar_path from public.profiles where id = tap_lite.id('regStud')),
+  tap_lite.id('regStud')::text || '/' || tap_lite.id('av1')::text, 'N7 the profile records the picture');
+select tap_lite.throws($$update public.profiles set avatar_path = null where id = tap_lite.id('regStud')$$,
+  '42501', 'N8 the picture can only be changed through set_my_avatar');
+select tap_lite.as_user(tap_lite.id('regLec2'));
+select tap_lite.lives($$insert into storage.objects (bucket_id, name) values ('avatars', tap_lite.id('regLec2')::text || '/' || tap_lite.id('av2')::text)$$,
+  'N9 pending and rejected (but active) accounts may still manage their own picture');
+select tap_lite.as_user(tap_lite.id('studB'));
+select tap_lite.rows_are($$select 1 from storage.objects where bucket_id = 'avatars' and name like tap_lite.id('regStud')::text || '/%'$$, 0,
+  'N10 an unrelated user cannot read someone else''s picture');
+select tap_lite.rows_are($$delete from storage.objects where bucket_id = 'avatars' and name like tap_lite.id('regStud')::text || '/%' returning 1$$, 0,
+  'N11 an unrelated user cannot delete someone else''s picture');
+select tap_lite.as_user(tap_lite.id('regStud'));
+select tap_lite.rows_are($$select 1 from storage.objects where bucket_id = 'avatars' and name like tap_lite.id('regStud')::text || '/%'$$, 1,
+  'N12 the owner can read their own picture');
+select tap_lite.is_equal(public.set_my_avatar(null), tap_lite.id('regStud')::text || '/' || tap_lite.id('av1')::text,
+  'N13 clearing the picture returns the old object name for deletion');
+select tap_lite.rows_are($$delete from storage.objects where bucket_id = 'avatars' and name like tap_lite.id('regStud')::text || '/%' returning 1$$, 1,
+  'N14 the owner can delete their own picture');
+select tap_lite.as_postgres();
+select tap_lite.throws($$update public.profiles set avatar_path = tap_lite.id('studA')::text || '/' || tap_lite.id('av1')::text
+  where id = tap_lite.id('studB')$$, '23514', 'N15 a profile can never reference a file in another person''s folder');
+
+-- ============ O. NO E-MAIL CONFIRMATION LINK (migration 0012) =================
+-- With "Confirm email" off, Supabase creates users already confirmed. That must not
+-- let anyone take over a pre-registered (approved) student record by typing its e-mail.
+select tap_lite.as_postgres();
+insert into tap_lite.fx (k, v) values
+  ('autoImpostor', 'a1000000-0000-0000-0000-0000000000b1'),
+  ('autoSelf',     'a1000000-0000-0000-0000-0000000000b2'),
+  ('autoClaim',    'a1000000-0000-0000-0000-0000000000b3'),
+  ('autoInvited',  'a1000000-0000-0000-0000-0000000000b4'),
+  ('autoOld',      'a1000000-0000-0000-0000-0000000000b5'),
+  ('autoAdmin',    'a1000000-0000-0000-0000-0000000000b6');
+insert into public.students (school_email, full_name, registration_number, level_id, department_id, approval_status) values
+  ('preapproved@uni.test', 'Pre Approved', 'PRE/0001', tap_lite.id('L100'), tap_lite.id('D_TCS'), 'approved'),
+  ('claimme@uni.test',     'Claim Me',     'PRE/0002', tap_lite.id('L100'), tap_lite.id('D_TCS'), 'approved'),
+  ('invited.stud@uni.test','Invited Stud', 'PRE/0003', tap_lite.id('L100'), tap_lite.id('D_TCS'), 'approved');
+
+-- Auto-confirmed sign-up (email_confirmed_at set at creation) with a pre-registered approved e-mail.
+insert into auth.users (id, email, email_confirmed_at, raw_user_meta_data)
+values (tap_lite.id('autoImpostor'), 'preapproved@uni.test', now(), ('{"registration_type":"student","full_name":"Someone Else"}'::jsonb || jsonb_build_object('level_id', tap_lite.id('L200'), 'department_id', tap_lite.id('D_TCS'))));
+select tap_lite.ok((select profile_id = tap_lite.id('autoImpostor') and approval_status = 'pending'
+                    from public.students where school_email = 'preapproved@uni.test'),
+  'O1 an auto-confirmed sign-up with a pre-registered e-mail is linked but set back to PENDING (e-mail is not proof of identity)');
+select tap_lite.as_user(tap_lite.id('autoImpostor'));
+select tap_lite.is_equal(public.is_approved_student(), false, 'O2 ... so it gets no student privileges until an administrator approves');
+select tap_lite.as_postgres();
+select tap_lite.is_equal((select email_ownership_verified from public.profiles where id = tap_lite.id('autoImpostor')), false,
+  'O3 an auto-confirmed account is not marked as having verified its mailbox');
+
+-- Ordinary self-registration with auto-confirm: account usable for sign-in at once, still pending.
+insert into auth.users (id, email, email_confirmed_at, raw_user_meta_data)
+values (tap_lite.id('autoSelf'), 'auto.self@uni.test', now(), ('{"registration_type":"lecturer","full_name":"Auto Lecturer","role":"admin"}'::jsonb || jsonb_build_object('department_id', tap_lite.id('D_TENG'))));
+select tap_lite.ok((select role = 'lecturer' from public.profiles where id = tap_lite.id('autoSelf'))
+                   and (select approval_status = 'pending' from public.staff_details where profile_id = tap_lite.id('autoSelf')),
+  'O4 with auto-confirm a lecturer sign-up is still only a PENDING lecturer');
+select tap_lite.as_user(tap_lite.id('autoSelf'));
+select tap_lite.is_equal(public.current_user_role(), null::public.user_role, 'O5 ... with no effective role');
+select tap_lite.as_postgres();
+
+-- claim_student_record by an auto-confirmed account: also pending.
+insert into auth.users (id, email, email_confirmed_at, raw_user_meta_data)
+values (tap_lite.id('autoClaim'), 'claim.later@uni.test', now(), ('{"registration_type":"student","full_name":"Claim Later"}'::jsonb || jsonb_build_object('level_id', tap_lite.id('L200'), 'department_id', tap_lite.id('D_TCS'))));
+delete from public.students where profile_id = tap_lite.id('autoClaim');
+update public.students set school_email = 'claim.later@uni.test' where school_email = 'claimme@uni.test';
+select tap_lite.as_user(tap_lite.id('autoClaim'));
+select tap_lite.is_equal(public.claim_student_record('PRE/0002'), true, 'O6 an auto-confirmed account can still claim its record');
+select tap_lite.as_postgres();
+select tap_lite.is_equal((select approval_status::text from public.students where registration_number = 'PRE/0002'), 'pending',
+  'O7 ... but the claimed record goes back to PENDING for review');
+
+-- Invitation link: created unconfirmed, confirmed by clicking -> ownership proven, approval kept.
+insert into auth.users (id, email, email_confirmed_at) values (tap_lite.id('autoInvited'), 'invited.stud@uni.test', null);
+update auth.users set email_confirmed_at = now() where id = tap_lite.id('autoInvited');
+select tap_lite.ok((select profile_id = tap_lite.id('autoInvited') and approval_status = 'approved'
+                    from public.students where school_email = 'invited.stud@uni.test')
+                   and (select email_ownership_verified from public.profiles where id = tap_lite.id('autoInvited')),
+  'O8 a student who confirms through an e-mail link (invitation) keeps the approval an administrator gave');
+
+-- Bulk-confirming old unconfirmed accounts does not count as proof.
+insert into auth.users (id, email, email_confirmed_at, raw_user_meta_data)
+values (tap_lite.id('autoOld'), 'old.unconfirmed@uni.test', null, ('{"registration_type":"student","full_name":"Old Unconfirmed"}'::jsonb || jsonb_build_object('level_id', tap_lite.id('L200'), 'department_id', tap_lite.id('D_TCS'))));
+select tap_lite.ok(public.confirm_existing_unconfirmed_users() >= 1, 'O9a confirm_existing_unconfirmed_users confirms old accounts');
+select tap_lite.ok((select email_confirmed_at is not null from auth.users where id = tap_lite.id('autoOld'))
+                   and not (select email_ownership_verified from public.profiles where id = tap_lite.id('autoOld')),
+  'O9 confirm_existing_unconfirmed_users lets old accounts sign in without marking their mailbox verified');
+select tap_lite.ok(not has_function_privilege('authenticated', 'public.confirm_existing_unconfirmed_users()', 'execute')
+                   and not has_function_privilege('anon', 'public.confirm_existing_unconfirmed_users()', 'execute')
+                   and not has_function_privilege('service_role', 'public.confirm_existing_unconfirmed_users()', 'execute'),
+  'O10 confirm_existing_unconfirmed_users is not callable through the API');
+select tap_lite.as_user(tap_lite.id('admin1'));
+select tap_lite.ok((select email_verified = false from public.list_registrations('pending', 'student', 'PRE/0001')),
+  'O11 the review list shows administrators that the e-mail was not verified');
+
+-- ============ P. ADMIN AREA: protection and overview (migration 0012) ==========
+select tap_lite.as_user(tap_lite.id('admin1'));
+select tap_lite.ok((select total from public.admin_overview_counts() where metric = 'complaints_total') >= 1
+                   and exists (select 1 from public.admin_overview_counts() where metric = 'students_approved'),
+  'P1 an administrator gets aggregate dashboard counts');
+select tap_lite.rows_are($$select 1 from public.complaints$$, 1,
+  'P2 ... while complaint content stays limited to the one scope explicitly granted in E21 (privacy unchanged)');
+select tap_lite.as_user(tap_lite.id('studA'));
+select tap_lite.throws($$select * from public.admin_overview_counts()$$, '42501', 'P3 a student cannot read the admin overview');
+select tap_lite.throws($$update public.profiles set role = 'admin' where id = tap_lite.id('studA')$$, '42501',
+  'P4a a student cannot make themselves an administrator ...');
+select tap_lite.is_equal((select role::text from public.profiles where id = tap_lite.id('studA')), 'student', 'P4b ... and stays a student');
+select tap_lite.throws($$insert into public.departments (name) values ('Student Dept')$$, '42501', 'P5 a student cannot create departments');
+select tap_lite.throws($$insert into public.staff_invitations (email, full_name, role) values ('me2@x.test', 'Me', 'admin')$$, '42501',
+  'P6 a student cannot create an administrator invitation');
+select tap_lite.rows_are($$update public.app_settings set value = 'false'::jsonb where key = 'self_registration_enabled' returning 1$$, 0,
+  'P7 a student cannot change settings');
+select tap_lite.throws($$select public.review_registration(tap_lite.id('autoImpostor'), 'approved', tap_lite.id('L100'), tap_lite.id('D_TCS'))$$, '42501',
+  'P8 a student cannot approve registrations');
+select tap_lite.as_user(tap_lite.id('lecMain'));
+select tap_lite.throws($$select * from public.admin_overview_counts()$$, '42501', 'P9 a main lecturer cannot read the admin overview');
+select tap_lite.as_anon();
+select tap_lite.throws($$select * from public.admin_overview_counts()$$, '42501', 'P10 signed-out visitors cannot read the admin overview');
+select tap_lite.as_postgres();
+select tap_lite.throws($$select public.bootstrap_first_admin('auto.self@uni.test', 'X')$$, '55000',
+  'P11 bootstrap_first_admin still refuses once an administrator exists');
+
+-- ============ Q. LEVEL / DEPARTMENT CHOSEN AT SIGN-UP (migration 0013) =========
+select tap_lite.as_postgres();
+insert into public.departments (name, code, is_active) values ('Test Closed Dept', 'TCLD', false);
+insert into tap_lite.fx select 'D_CLOSED', id from public.departments where code = 'TCLD';
+insert into tap_lite.fx (k, v) values
+  ('qStud', 'a1000000-0000-0000-0000-0000000000c1'), ('qLec', 'a1000000-0000-0000-0000-0000000000c2'),
+  ('qBad',  'a1000000-0000-0000-0000-0000000000c3'), ('qPre', 'a1000000-0000-0000-0000-0000000000c4');
+
+select tap_lite.as_anon();
+select tap_lite.ok((select count(*) from public.registration_options() where kind = 'level') >= 7
+                   and exists (select 1 from public.registration_options() where kind = 'department' and name = 'Test Computer Science'),
+  'Q1 signed-out visitors can list active levels and departments for the sign-up form');
+select tap_lite.rows_are($$select 1 from public.registration_options() where name = 'Test Closed Dept'$$, 0,
+  'Q2 inactive departments are not offered');
+select tap_lite.throws($$select 1 from public.departments$$, '42501', 'Q3 signed-out visitors still cannot read the departments table');
+select tap_lite.as_postgres();
+select tap_lite.is_equal(
+  (select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'public' and p.prosecdef and has_function_privilege('anon', p.oid, 'execute')), 1::bigint,
+  'Q4 registration_options is the only definer function anon can execute');
+
+select tap_lite.throws($$insert into auth.users (id, email, email_confirmed_at, raw_user_meta_data) values (tap_lite.id('qBad'), 'q.bad@uni.test', now(),
+  '{"registration_type":"student","full_name":"Q Bad"}'::jsonb || jsonb_build_object('department_id', tap_lite.id('D_TCS')))$$,
+  '22023', 'Q5 a student must choose a level');
+select tap_lite.throws($$insert into auth.users (id, email, email_confirmed_at, raw_user_meta_data) values (tap_lite.id('qBad'), 'q.bad@uni.test', now(),
+  '{"registration_type":"student","full_name":"Q Bad"}'::jsonb || jsonb_build_object('level_id', tap_lite.id('L200')))$$,
+  '22023', 'Q6 a student must choose a department');
+select tap_lite.throws($$insert into auth.users (id, email, email_confirmed_at, raw_user_meta_data) values (tap_lite.id('qBad'), 'q.bad@uni.test', now(),
+  '{"registration_type":"student","full_name":"Q Bad"}'::jsonb || jsonb_build_object('level_id', tap_lite.id('L200'), 'department_id', tap_lite.id('D_CLOSED')))$$,
+  '22023', 'Q7 an inactive department is rejected');
+select tap_lite.throws($$insert into auth.users (id, email, email_confirmed_at, raw_user_meta_data) values (tap_lite.id('qBad'), 'q.bad@uni.test', now(),
+  '{"registration_type":"student","full_name":"Q Bad","level_id":"not-a-uuid","department_id":"00000000-0000-0000-0000-000000000000"}'::jsonb)$$,
+  '22023', 'Q8 malformed or unknown ids are rejected');
+select tap_lite.throws($$insert into auth.users (id, email, email_confirmed_at, raw_user_meta_data) values (tap_lite.id('qBad'), 'q.bad@uni.test', now(),
+  '{"registration_type":"lecturer","full_name":"Q Bad"}'::jsonb)$$,
+  '22023', 'Q9 a lecturer must choose a home department');
+select tap_lite.rows_are($$select 1 from auth.users where id = tap_lite.id('qBad')$$, 0,
+  'Q10 a rejected sign-up leaves no auth user behind (same transaction)');
+
+insert into auth.users (id, email, email_confirmed_at, raw_user_meta_data) values
+  (tap_lite.id('qStud'), 'q.stud@uni.test', now(),
+   '{"registration_type":"student","full_name":"Q Student"}'::jsonb || jsonb_build_object('level_id', tap_lite.id('L300'), 'department_id', tap_lite.id('D_TMTH'))),
+  (tap_lite.id('qLec'), 'q.lec@uni.test', now(),
+   '{"registration_type":"lecturer","full_name":"Q Lecturer"}'::jsonb || jsonb_build_object('department_id', tap_lite.id('D_TMTH'), 'level_id', tap_lite.id('L300')));
+select tap_lite.ok((select level_id = tap_lite.id('L300') and department_id = tap_lite.id('D_TMTH') and approval_status = 'pending'
+                    from public.students where profile_id = tap_lite.id('qStud')),
+  'Q11 a student''s chosen level and department are stored, and the account is still pending');
+select tap_lite.ok((select department_id = tap_lite.id('D_TMTH') and approval_status = 'pending'
+                    from public.staff_details where profile_id = tap_lite.id('qLec')),
+  'Q12 a lecturer''s chosen home department is stored, and the account is still pending');
+select tap_lite.as_user(tap_lite.id('qStud'));
+select tap_lite.is_equal(public.is_approved_student(), false, 'Q13 choosing a department grants nothing before approval');
+select tap_lite.as_user(tap_lite.id('admin1'));
+select tap_lite.lives($$select public.review_registration(tap_lite.id('qStud'), 'approved', tap_lite.id('L100'), tap_lite.id('D_TCS'))$$,
+  'Q14 an administrator can correct the level and department while approving');
+select tap_lite.ok((select level_id = tap_lite.id('L100') and department_id = tap_lite.id('D_TCS') from public.students where profile_id = tap_lite.id('qStud')),
+  'Q15 ... and the corrected values are saved');
+select tap_lite.as_postgres();
+insert into public.students (school_email, full_name, registration_number, level_id, department_id, approval_status)
+values ('q.pre@uni.test', 'Q Pre', 'PRE/0099', tap_lite.id('L700'), tap_lite.id('D_TENG'), 'pending');
+insert into auth.users (id, email, email_confirmed_at, raw_user_meta_data) values (tap_lite.id('qPre'), 'q.pre@uni.test', null,
+  '{"registration_type":"student","full_name":"Q Pre"}'::jsonb || jsonb_build_object('level_id', tap_lite.id('L100'), 'department_id', tap_lite.id('D_TCS')));
+select tap_lite.ok((select level_id = tap_lite.id('L700') and department_id = tap_lite.id('D_TENG') from public.students where school_email = 'q.pre@uni.test'),
+  'Q16 a pre-registered record keeps the administrator''s level and department');
 
 select * from tap_lite.finish();
 rollback;
