@@ -3,7 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "description": "Private student-to-lecturer complaint management on Next.js and Supabase.",
-  "engines": { "node": ">=20.9.0" },
+  "engines": {
+    "node": ">=20.9.0"
+  },
   "scripts": {
     "dev": "next dev",
     "build": "next build",
@@ -19,6 +21,7 @@
     "@supabase/ssr": "^0.7.0",
     "@supabase/supabase-js": "^2.50.0",
     "next": "^15.5.0",
+    "nodemailer": "^7.0.13",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "server-only": "^0.0.1",
@@ -29,6 +32,7 @@
     "@eslint/eslintrc": "^3.3.0",
     "@tailwindcss/postcss": "^4.1.0",
     "@types/node": "^22.0.0",
+    "@types/nodemailer": "^8.0.2",
     "@types/react": "^19.1.0",
     "@types/react-dom": "^19.1.0",
     "eslint": "^9.30.0",

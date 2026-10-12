@@ -3,7 +3,7 @@
 
 import { useState, useTransition } from "react";
 import { searchLecturersAction } from "./search-action";
-import { lecturerLabel, type LecturerOption } from "@/lib/complaints/lecturers";
+import { lecturerLabel, type LecturerOption, type LevelAdvisor } from "@/lib/complaints/lecturers";
 
 type Choice = { id: string; name: string };
 
@@ -17,11 +17,13 @@ export function LecturerPicker({
   levels,
   initialId,
   error,
+  advisor = null,
 }: {
   departments: readonly Choice[];
   levels: readonly Choice[];
   initialId: string;
   error?: string | undefined;
+  advisor?: LevelAdvisor | null;
 }) {
   const [query, setQuery] = useState("");
   const [lecturerDepartmentId, setDept] = useState("");
@@ -54,6 +56,18 @@ export function LecturerPicker({
     <fieldset className="space-y-3" aria-describedby={error ? errorId : undefined}>
       <legend className="text-sm font-medium text-slate-800">Lecturer this complaint is for</legend>
       <input type="hidden" name="targetLecturerId" value={selected?.id ?? (cleared ? "" : initialId)} />
+
+      {advisor && selected?.id !== advisor.id ? (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-gold-300 bg-gold-50 px-3 py-2.5 text-sm dark:border-gold-600 dark:bg-slate-50">
+          <span>
+            <span className="block text-xs font-semibold uppercase tracking-wide text-slate-600">Your level advisor · {advisor.advises[0]}</span>
+            <span className="font-medium text-slate-900">{lecturerLabel(advisor)}</span>
+          </span>
+          <button type="button" onClick={() => { setSelected(advisor); setCleared(false); }} className="rounded-md bg-brand-700 px-3 py-1.5 text-sm font-semibold text-white hover:bg-brand-800">
+            Send to my level advisor
+          </button>
+        </div>
+      ) : null}
 
       {selected ? (
         <p className="flex items-center justify-between rounded-md border border-brand-700 bg-brand-50 px-3 py-2 text-sm">
@@ -119,6 +133,9 @@ export function LecturerPicker({
             <li key={l.id}>
               <button type="button" onClick={() => setSelected(l)} className="w-full px-3 py-2.5 text-left text-sm hover:bg-slate-50">
                 <span className="block font-medium">{lecturerLabel(l)}</span>
+                {l.advises.length > 0 ? (
+                  <span className="mt-1 block text-xs font-medium text-slate-600">Level advisor: {l.advises.join(", ")}</span>
+                ) : null}
                 {l.courses.length > 0 ? (
                   <span className="mt-1 flex flex-wrap gap-1" aria-label={`Courses: ${l.courses.join(", ")}`}>
                     {l.courses.map((c) => (

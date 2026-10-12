@@ -1,5 +1,6 @@
 // UNVERIFIED: depends on next, react and @supabase/ssr, which could not be installed when this was written.
 import "server-only";
+import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { requireRole } from "@/lib/auth/guards";
 import type { Profile } from "@/lib/auth/profile";
@@ -9,7 +10,7 @@ import { sendInvite } from "./invite";
 import { validateStudentCsv, type CsvRowResult } from "./csv";
 import {
   assignmentRow, departmentRow, categoryRow, invitationRow, levelRow, parseAssignment, parseAssignmentDelete, parseAssignmentToggle,
-  parseCategory, parseDepartment, parseInviteStudent, parseLevel, parseResendInvite, parseReview, parseStaffDetails, parseStaffInvite,
+  parseAdvisor, parseAdvisorRemove, parseCategory, parseDepartment, parseInviteStudent, parseLevel, parseResendInvite, parseReview, parseStaffDetails, parseStaffInvite,
   parseStudentCreate, parseStudentUpdate, parseUserUpdate, reviewArgs, staffDetailsRow, studentInsertRow, studentUpdateRow, userUpdateRow, type AdminState, type Src,
 } from "./schemas";
 import { parseSettingValue } from "./settings";
@@ -309,6 +310,42 @@ export async function saveCourse(src: Src): Promise<AdminState> {
   const s = await createClient();
   const { error } = p.data.id ? await s.from("courses").update(row).eq("id", p.data.id) : await s.from("courses").insert(row);
   return done(error, "course", p.data.id ? "Course updated." : "Course added.");
+}
+
+// ---- level advisors ----------------------------------------------------------------------
+const advisorRow = z.object({ department_id: z.string().uuid(), level_id: z.string().uuid(), lecturer_profile_id: z.string().uuid(), created_at: z.string() });
+export async function listAdvisors() {
+  await requireAdmin();
+  const s = await createClient();
+  const [a, u, d] = await Promise.all([
+    s.from("level_advisors").select("department_id,level_id,lecturer_profile_id,created_at"),
+    s.from("profiles").select(USER_COLUMNS).in("role", ["lecturer", "main_lecturer"]).eq("is_active", true).order("full_name"),
+    s.from("staff_details").select("profile_id,approval_status"),
+  ]);
+  const rows = a.error ? null : parseList(advisorRow, a.data);
+  const lecturers = u.error ? null : parseList(userRow, u.data);
+  if (!rows || !lecturers || d.error) return { ok: false as const };
+  const pending = new Set((d.data ?? []).filter((x) => x.approval_status !== "approved").map((x) => x.profile_id as string));
+  return { ok: true as const, rows, lecturers: lecturers.filter((l) => !pending.has(l.id)), names: new Map(lecturers.map((l) => [l.id, l.full_name])) };
+}
+/** Appoints or replaces the advisor of one department + level (one advisor per pair; guard trigger checks eligibility). */
+export async function saveAdvisor(src: Src): Promise<AdminState> {
+  await requireAdmin();
+  const p = parseAdvisor(src);
+  if (!p.success) return invalid(p.error);
+  const { error } = await (await createClient()).from("level_advisors").upsert(
+    { department_id: p.data.departmentId, level_id: p.data.levelId, lecturer_profile_id: p.data.lecturerId },
+    { onConflict: "department_id,level_id" },
+  );
+  if (error?.code === "22023") return { ok: false, message: "Choose an active, approved lecturer and an active department and level." };
+  return done(error, "advisor", "Level advisor saved.");
+}
+export async function removeAdvisor(src: Src): Promise<AdminState> {
+  await requireAdmin();
+  const p = parseAdvisorRemove(src);
+  if (!p.success) return invalid(p.error);
+  const { error } = await (await createClient()).from("level_advisors").delete().eq("department_id", p.data.departmentId).eq("level_id", p.data.levelId);
+  return done(error, "advisor", "Level advisor removed.");
 }
 
 // ---- audit logs and settings -------------------------------------------------------------

@@ -3,6 +3,8 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { getStatusTotals } from "@/lib/complaints/overview-data";
 import { listMyComplaints } from "@/lib/complaints/student-data";
+import { getMyLevelAdvisor } from "@/lib/complaints/data";
+import { lecturerLabel } from "@/lib/complaints/lecturers";
 import { getSessionUser } from "@/lib/auth/guards";
 import { EMAIL_UNVERIFIED, studentAccess } from "@/lib/student/onboarding";
 import { getStudentContext } from "@/lib/student/data";
@@ -39,13 +41,23 @@ export default async function StudentDashboard() {
     );
   }
 
-  const [totals, recent] = await Promise.all([getStatusTotals(), listMyComplaints({})]);
+  const [totals, recent, advisor] = await Promise.all([getStatusTotals(), listMyComplaints({}), getMyLevelAdvisor()]);
   return (
     <main id="main" className="mx-auto max-w-5xl space-y-6 px-4 py-6 sm:px-6 sm:py-8">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="border-l-4 border-gold-500 pl-3 text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">Dashboard</h1>
         <Link href="/student/complaints/new" className="rounded-md bg-brand-700 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-800">Submit a complaint</Link>
       </div>
+
+      {advisor ? (
+        <section aria-labelledby="advisor" className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-gold-300 bg-gold-50 p-4 dark:border-gold-600 dark:bg-slate-50">
+          <div>
+            <h2 id="advisor" className="text-xs font-semibold uppercase tracking-wide text-slate-600">Your level advisor · {advisor.advises[0]}</h2>
+            <p className="mt-1 font-semibold text-slate-900">{lecturerLabel(advisor)}</p>
+          </div>
+          <Link href="/student/complaints/new" className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-800 hover:bg-slate-50">Write to them</Link>
+        </section>
+      ) : null}
 
       {totals ? (
         <dl className="grid grid-cols-2 gap-3 sm:grid-cols-4">

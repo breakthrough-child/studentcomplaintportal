@@ -14,7 +14,14 @@ export default async function LecturerSettings() {
     <main id="main" className="mx-auto max-w-2xl space-y-6 px-4 py-6 sm:px-6 sm:py-8">
       <h1 className="border-l-4 border-gold-500 pl-3 text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">Settings</h1>
       <ProfilePicture profile={profile} />
-      <SettingsForm title={s.title} acceptsComplaints={s.acceptsComplaints} />
+      <SettingsForm title={s.title} acceptsComplaints={s.acceptsComplaints} emailNotifications={s.emailNotifications} />
+      {s.advises.length > 0 ? (
+        <section aria-labelledby="advisor" className="rounded-xl border border-gold-300 bg-gold-50 p-4 dark:border-gold-600 dark:bg-slate-50">
+          <h2 id="advisor" className="font-medium text-slate-900">You are the level advisor for</h2>
+          <ul className="mt-2 flex flex-wrap gap-2">{s.advises.map((a) => <li key={a} className="rounded bg-navy-700 px-2 py-1 text-sm font-medium text-gold-300">{a}</li>)}</ul>
+          <p className="mt-2 text-sm text-slate-600">Students at these levels see you as their level advisor and can send you a complaint in one click. It does not give you access to other complaints.</p>
+        </section>
+      ) : null}
       <section aria-labelledby="scope" className="rounded-xl border border-slate-200 bg-white shadow-sm p-4">
         <h2 id="scope" className="font-medium">Your authorised scope</h2>
         <p className="mt-1 text-sm text-slate-600">Set by an administrator. {s.departmentName ? `Home department: ${s.departmentName}.` : ""}</p>

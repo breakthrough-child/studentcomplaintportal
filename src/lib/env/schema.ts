@@ -73,3 +73,53 @@ export function parseServerEnv(raw: RawEnv, anonKey: string): ServerEnv {
   }
   return result.data;
 }
+
+// ---- outgoing e-mail (SMTP) ------------------------------------------------------------------
+// Optional. Without SMTP_HOST, notifications stay queued in the database (notification_outbox) and are
+// sent once SMTP is configured. Values are never echoed in errors.
+export type MailConfig = {
+  readonly host: string;
+  readonly port: number;
+  readonly secure: boolean;
+  readonly user: string | undefined;
+  readonly password: string | undefined;
+  readonly from: string;
+};
+export type MailEnv = { readonly ok: true; readonly config: MailConfig } | { readonly ok: false; readonly reason: string };
+
+const mailSchema = z.object({
+  SMTP_HOST: z.string().trim().min(1).max(255).regex(/^[A-Za-z0-9.-]+$/, "must be a host name"),
+  SMTP_PORT: z.preprocess(emptyToUndefined, z.coerce.number().int().min(1).max(65535).default(587)),
+  SMTP_SECURE: z.preprocess(emptyToUndefined, z.enum(["true", "false"]).optional()),
+  SMTP_USER: z.preprocess(emptyToUndefined, z.string().max(320).optional()),
+  SMTP_PASSWORD: z.preprocess(emptyToUndefined, z.string().max(1024).optional()),
+  // "Name <address@domain>" or a bare address.
+  SMTP_FROM: z.string().trim().min(3).max(320).regex(/^([^<>\r\n]*<[^@\s<>]+@[^@\s<>]+>|[^@\s<>]+@[^@\s<>]+)$/, "must be an address or Name <address>"),
+});
+
+export function parseMailEnv(raw: RawEnv): MailEnv {
+  if (!raw.SMTP_HOST || raw.SMTP_HOST.trim() === "") return { ok: false, reason: "SMTP is not configured (SMTP_HOST is empty)" };
+  const r = mailSchema.safeParse(raw);
+  if (!r.success) return { ok: false, reason: `SMTP configuration is invalid: ${formatEnvIssues(r.error)}` };
+  if (Boolean(r.data.SMTP_USER) !== Boolean(r.data.SMTP_PASSWORD)) {
+    return { ok: false, reason: "SMTP configuration is invalid: set both SMTP_USER and SMTP_PASSWORD, or neither" };
+  }
+  return {
+    ok: true,
+    config: {
+      host: r.data.SMTP_HOST,
+      port: r.data.SMTP_PORT,
+      // Port 465 is TLS from the start; 587/25 upgrade with STARTTLS.
+      secure: r.data.SMTP_SECURE ? r.data.SMTP_SECURE === "true" : r.data.SMTP_PORT === 465,
+      user: r.data.SMTP_USER,
+      password: r.data.SMTP_PASSWORD,
+      from: r.data.SMTP_FROM,
+    },
+  };
+}
+
+/** CRON_SECRET protects the scheduled "send queued e-mails" endpoint. Absent or too short = endpoint disabled. */
+export function parseCronSecret(raw: RawEnv): string | null {
+  const s = raw.CRON_SECRET?.trim();
+  return s && s.length >= 24 ? s : null;
+}

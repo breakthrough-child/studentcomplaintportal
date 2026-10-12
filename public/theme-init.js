@@ -3,7 +3,7 @@
 (function () {
   var root = document.documentElement;
   function stored() {
-    try { return localStorage.getItem("theme"); } catch (e) { return null; }
+    try { return localStorage.getItem("theme"); } catch { return null; }
   }
   function apply() {
     var choice = stored();
@@ -14,5 +14,5 @@
   apply();
   try {
     window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", apply);
-  } catch (e) { /* very old browsers: keep the initial theme */ }
+  } catch { /* very old browsers: keep the initial theme */ }
 })();

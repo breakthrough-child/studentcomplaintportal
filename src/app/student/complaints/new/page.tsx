@@ -1,12 +1,12 @@
 // UNVERIFIED: depends on next and react, which could not be installed when this was written.
 import type { Metadata } from "next";
-import { loadFormOptions } from "@/lib/complaints/data";
+import { getMyLevelAdvisor, loadFormOptions } from "@/lib/complaints/data";
 import { ComplaintForm } from "./complaint-form";
 
 export const metadata: Metadata = { title: "New complaint" };
 
 export default async function NewComplaintPage() {
-  const options = await loadFormOptions(); // also enforces: signed in, student role, approved
+  const [options, advisor] = await Promise.all([loadFormOptions(), getMyLevelAdvisor()]); // both enforce: signed in, approved student
   if (!options.ok) {
     return (
       <main className="mx-auto max-w-2xl px-4 py-6 sm:px-6 sm:py-8">
@@ -25,6 +25,7 @@ export default async function NewComplaintPage() {
         defaultLevelId={options.scope.levelId}
         defaultDepartmentId={options.scope.departmentId}
         allowScopeOverride={options.allowScopeOverride}
+        advisor={advisor}
       />
     </main>
   );

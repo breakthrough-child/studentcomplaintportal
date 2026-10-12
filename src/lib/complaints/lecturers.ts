@@ -67,6 +67,7 @@ const lecturerRowSchema = z.object({
   title: z.string().nullable(),
   home_department_name: z.string().nullable(),
   courses: z.array(z.string()).max(20).optional(),
+  advises: z.array(z.string()).max(50).optional(),
 });
 
 /** What the browser receives. Nothing about assignments, e-mail or complaints. */
@@ -77,6 +78,8 @@ export type LecturerOption = {
   readonly department: string | null;
   /** Codes of the courses the lecturer takes, e.g. ["CSC 301"]. */
   readonly courses: readonly string[];
+  /** Levels the lecturer is the level advisor for, e.g. ["CSC · 400 Level"]. */
+  readonly advises: readonly string[];
 };
 
 /** Validated, minimised rows; null if the response is not the expected shape (fail closed). */
@@ -89,6 +92,7 @@ export function parseLecturerRows(data: unknown): LecturerOption[] | null {
     title: row.title?.trim() ? row.title.trim() : null,
     department: row.home_department_name?.trim() ? row.home_department_name.trim() : null,
     courses: (row.courses ?? []).map((c) => c.trim()).filter(Boolean),
+    advises: (row.advises ?? []).map((c) => c.trim()).filter(Boolean),
   }));
 }
 
@@ -108,3 +112,13 @@ export function lecturerLabel(option: LecturerOption): string {
 export type LecturerSearchResult =
   | { readonly ok: true; readonly lecturers: readonly LecturerOption[]; readonly hasMore: boolean; readonly page: number }
   | { readonly ok: false; readonly message: string };
+
+/** my_level_advisor(): the signed-in student's level advisor, or null. */
+const advisorRow = z.object({ profile_id: z.string().uuid(), full_name: z.string().min(1), title: z.string().nullable(), advises: z.string() });
+export type LevelAdvisor = LecturerOption;
+export function parseLevelAdvisor(data: unknown): LevelAdvisor | null {
+  const rows = z.array(advisorRow).safeParse(data);
+  const row = rows.success ? rows.data[0] : undefined;
+  if (!row) return null;
+  return { id: row.profile_id, name: row.full_name, title: row.title?.trim() ? row.title.trim() : null, department: null, courses: [], advises: [row.advises] };
+}

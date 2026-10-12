@@ -234,6 +234,14 @@ export const parseReview = (s: Src) => reviewSchema.safeParse(pick(s, ["profileI
 export const reviewArgs = (i: z.infer<typeof reviewSchema>) =>
   ({ p_profile_id: i.profileId, p_decision: i.decision, p_level_id: i.levelId, p_department_id: i.departmentId }) as const;
 
+// ---- level advisors -------------------------------------------------------------------
+export const advisorSchema = z
+  .object({ departmentId: requiredUuid("Choose a department"), levelId: requiredUuid("Choose a level"), lecturerId: requiredUuid("Choose a lecturer") })
+  .strict();
+export const parseAdvisor = (s: Src) => advisorSchema.safeParse(pick(s, ["departmentId", "levelId", "lecturerId"]));
+export const advisorRemoveSchema = z.object({ departmentId: requiredUuid("Invalid department"), levelId: requiredUuid("Invalid level") }).strict();
+export const parseAdvisorRemove = (s: Src) => advisorRemoveSchema.safeParse(pick(s, ["departmentId", "levelId"]));
+
 export type AdminState = {
   readonly ok: boolean;
   readonly message?: string;

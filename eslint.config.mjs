@@ -26,7 +26,7 @@ const config = [
   },
   {
     // Allow the admin client where it is audited and intentionally used.
-    files: ["src/lib/supabase/admin.ts", "src/lib/admin/**/*.ts"],
+    files: ["src/lib/supabase/admin.ts", "src/lib/admin/**/*.ts", "src/lib/notifications/send.ts"],
     rules: { "no-restricted-imports": "off" },
   },
 ];

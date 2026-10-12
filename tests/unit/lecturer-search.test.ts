@@ -2,6 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import {
+  parseLevelAdvisor,
   LECTURER_MAX_PAGE,
   LECTURER_PAGE_SIZE,
   LECTURER_QUERY_MAX,
@@ -85,7 +86,7 @@ const row = {
 
 test("rows are minimised: assignments, department id and any extra column never reach the browser", () => {
   const out = parseLecturerRows([row]);
-  assert.deepEqual(out, [{ id: PID, name: "Jane Doe", title: "Dr", department: "Computer Science", courses: [] }]);
+  assert.deepEqual(out, [{ id: PID, name: "Jane Doe", title: "Dr", department: "Computer Science", courses: [], advises: [] }]);
   const json = JSON.stringify(out);
   for (const leak of ["scope_labels", "Physics", "700 Level", "email", "jane@", DEPT]) {
     assert.equal(json.includes(leak), false, leak);
@@ -99,7 +100,7 @@ test("a lecturer from another department is returned like any other (cross-depar
 
 test("blank title/department become null; malformed or non-array responses fail closed", () => {
   assert.deepEqual(parseLecturerRows([{ ...row, title: "  ", home_department_name: null }]), [
-    { id: PID, name: "Jane Doe", title: null, department: null, courses: [] },
+    { id: PID, name: "Jane Doe", title: null, department: null, courses: [], advises: [] },
   ]);
   assert.equal(parseLecturerRows([{ ...row, profile_id: "nope" }]), null);
   assert.equal(parseLecturerRows([{ ...row, full_name: "" }]), null);
@@ -120,7 +121,7 @@ test("pageResults trims the look-ahead row and reports whether more exist", () =
 });
 
 test("lecturerLabel combines title, name and department without doubling the title", () => {
-  const mk = (o: Partial<LecturerOption>): LecturerOption => ({ id: PID, name: "Jane Doe", title: "Dr", department: "Law", courses: [], ...o });
+  const mk = (o: Partial<LecturerOption>): LecturerOption => ({ id: PID, name: "Jane Doe", title: "Dr", department: "Law", courses: [], advises: [], ...o });
   const sep = " " + String.fromCharCode(0x2014) + " ";
   assert.equal(lecturerLabel(mk({})), "Dr Jane Doe" + sep + "Law");
   assert.equal(lecturerLabel(mk({ name: "Dr Jane Doe" })), "Dr Jane Doe" + sep + "Law");
@@ -128,8 +129,8 @@ test("lecturerLabel combines title, name and department without doubling the tit
 });
 
 // ---- static contract check against the real migration (does NOT run the database) ----
-// search_lecturers was last (re)defined in 0014 (courses).
-const sql = readFileSync(new URL("../../supabase/migrations/20261010000014_courses.sql", import.meta.url), "utf8");
+// search_lecturers was last (re)defined in 0015 (level advisors).
+const sql = readFileSync(new URL("../../supabase/migrations/20261010000015_level_advisors_notifications.sql", import.meta.url), "utf8");
 
 function signature(name: string): string {
   const start = sql.indexOf(`function public.${name}(`);
@@ -166,4 +167,12 @@ test("course codes the lecturer takes are passed through (trimmed); bad shapes f
   assert.deepEqual(out?.[0]?.courses, ["CSC 301", "MTH 201"]);
   assert.equal(parseLecturerRows([{ ...row, courses: "CSC 301" }]), null);
   assert.equal(parseLecturerRows([{ ...row, courses: [5] }]), null);
+});
+
+test("advised levels pass through; the student's own advisor parses (or is absent)", () => {
+  assert.deepEqual(parseLecturerRows([{ ...row, advises: ["CSC · 400 Level"] }])?.[0]?.advises, ["CSC · 400 Level"]);
+  const a = parseLevelAdvisor([{ profile_id: PID, full_name: "Jane Doe", title: "Dr", advises: "CSC · 400 Level" }]);
+  assert.deepEqual([a?.id, a?.title, a?.advises], [PID, "Dr", ["CSC · 400 Level"]]);
+  assert.equal(parseLevelAdvisor([]), null);
+  assert.equal(parseLevelAdvisor([{ profile_id: "x" }]), null);
 });

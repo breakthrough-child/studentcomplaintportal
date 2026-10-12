@@ -5,7 +5,7 @@ import { z } from "zod";
 import { codePointLength, containsForbiddenText } from "../complaints/schema";
 
 export const TITLE_MAX = 100;
-export const SETTINGS_COLUMNS = "title,accepts_complaints,department_id" as const;
+export const SETTINGS_COLUMNS = "title,accepts_complaints,department_id,email_notifications" as const;
 
 export const staffSettingsSchema = z
   .object({
@@ -20,20 +20,27 @@ export const staffSettingsSchema = z
         .optional(),
     ),
     acceptsComplaints: z.preprocess((v) => v === "on" || v === "true" || v === true, z.boolean()),
+    emailNotifications: z.preprocess((v) => v === "on" || v === "true" || v === true, z.boolean()),
   })
   .strict();
 
 export function parseStaffSettings(source: { get(name: string): unknown }) {
   const raw = (k: string) => { const v = source.get(k); return v === null ? undefined : v; };
-  return staffSettingsSchema.safeParse({ title: raw("title"), acceptsComplaints: raw("acceptsComplaints") });
+  return staffSettingsSchema.safeParse({ title: raw("title"), acceptsComplaints: raw("acceptsComplaints"), emailNotifications: raw("emailNotifications") });
 }
 
-export const settingsUpdate = (i: z.infer<typeof staffSettingsSchema>) => ({ title: i.title ?? null, accepts_complaints: i.acceptsComplaints }) as const;
+export const settingsUpdate = (i: z.infer<typeof staffSettingsSchema>) =>
+  ({ title: i.title ?? null, accepts_complaints: i.acceptsComplaints, email_notifications: i.emailNotifications }) as const;
 
-const settingsRow = z.object({ title: z.string().nullable(), accepts_complaints: z.boolean(), department_id: z.string().uuid().nullable() });
+const settingsRow = z.object({
+  title: z.string().nullable(), accepts_complaints: z.boolean(), department_id: z.string().uuid().nullable(),
+  email_notifications: z.boolean().optional(),
+});
 export function parseSettingsRow(row: unknown) {
   const r = settingsRow.safeParse(row);
-  return r.success ? { title: r.data.title ?? "", acceptsComplaints: r.data.accepts_complaints, departmentId: r.data.department_id } : null;
+  return r.success
+    ? { title: r.data.title ?? "", acceptsComplaints: r.data.accepts_complaints, departmentId: r.data.department_id, emailNotifications: r.data.email_notifications ?? true }
+    : null;
 }
 
 export const ASSIGNMENT_COLUMNS = "id,lecturer_profile_id,scope_type,level_id,department_id,is_active" as const;

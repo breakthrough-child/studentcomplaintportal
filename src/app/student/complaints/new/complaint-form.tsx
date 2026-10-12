@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useActionState, useState } from "react";
 import { submitComplaintAction } from "./actions";
 import { LecturerPicker } from "./lecturer-picker";
+import type { LevelAdvisor } from "@/lib/complaints/lecturers";
 import { FileInput } from "@/components/attachments";
 import { PRIVACY_NOTICE_POINTS, routingNotice } from "@/lib/complaints/options";
 import { DESCRIPTION_MAX, TITLE_MAX, URGENCY_LABELS, URGENCY_LEVELS, initialSubmitState } from "@/lib/complaints/schema";
@@ -19,10 +20,10 @@ function Err({ id, text }: { id: string; text: string | undefined }) {
 }
 
 export function ComplaintForm({
-  levels, departments, categories, defaultLevelId, defaultDepartmentId, allowScopeOverride,
+  levels, departments, categories, defaultLevelId, defaultDepartmentId, allowScopeOverride, advisor,
 }: {
   levels: Choice[]; departments: Choice[]; categories: CategoryChoice[];
-  defaultLevelId: string; defaultDepartmentId: string; allowScopeOverride: boolean;
+  defaultLevelId: string; defaultDepartmentId: string; allowScopeOverride: boolean; advisor: LevelAdvisor | null;
 }) {
   const [state, action, pending] = useActionState(submitComplaintAction, initialSubmitState);
   const v = state.values;
@@ -67,7 +68,7 @@ export function ComplaintForm({
         <Err id="description-error" text={e.description} />
       </div>
 
-      <LecturerPicker departments={departments} levels={levels} initialId={v?.targetLecturerId ?? ""} error={e.targetLecturerId} />
+      <LecturerPicker departments={departments} levels={levels} initialId={v?.targetLecturerId ?? ""} error={e.targetLecturerId} advisor={advisor} />
 
       {allowScopeOverride ? (
         <fieldset className="grid gap-3 sm:grid-cols-2">

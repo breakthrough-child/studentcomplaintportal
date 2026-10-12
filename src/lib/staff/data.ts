@@ -275,16 +275,17 @@ export async function getReports(): Promise<Reports> {
 // ---- lecturer settings ----------------------------------------------------------------------
 
 export type SettingsView =
-  | { ok: true; title: string; acceptsComplaints: boolean; departmentName: string | null; scopes: string[] }
+  | { ok: true; title: string; acceptsComplaints: boolean; emailNotifications: boolean; departmentName: string | null; scopes: string[]; advises: string[] }
   | { ok: false };
 
 export async function getMySettings(): Promise<SettingsView> {
   const me = await requireStaff();
   const supabase = await createClient();
-  const [details, assignments, ref] = await Promise.all([
+  const [details, assignments, ref, advising] = await Promise.all([
     supabase.from("staff_details").select(SETTINGS_COLUMNS).eq("profile_id", me.id).maybeSingle(),
     supabase.from("lecturer_assignments").select(ASSIGNMENT_COLUMNS).eq("lecturer_profile_id", me.id).eq("is_active", true),
     loadReference(),
+    supabase.from("level_advisors").select("department_id,level_id").eq("lecturer_profile_id", me.id),
   ]);
   const row = details.error ? null : parseSettingsRow(details.data);
   const rows = assignments.error ? null : parseAssignments(assignments.data);
@@ -292,9 +293,10 @@ export async function getMySettings(): Promise<SettingsView> {
   const levels = new Map(ref.levels.map((l) => [l.id, l.name]));
   const departments = new Map(ref.departments.map((d) => [d.id, d.name]));
   return {
-    ok: true, title: row.title, acceptsComplaints: row.acceptsComplaints,
+    ok: true, title: row.title, acceptsComplaints: row.acceptsComplaints, emailNotifications: row.emailNotifications,
     departmentName: row.departmentId ? (departments.get(row.departmentId) ?? null) : null,
     scopes: rows.map((a) => describeScope(a, levels, departments)),
+    advises: (advising.data ?? []).map((a) => `${departments.get(a.department_id) ?? "Department"} · ${levels.get(a.level_id) ?? "Level"}`),
   };
 }
 

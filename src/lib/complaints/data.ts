@@ -8,7 +8,9 @@ import {
   lecturerSearchSchema,
   pageResults,
   parseLecturerRows,
+  parseLevelAdvisor,
   type LecturerSearchResult,
+  type LevelAdvisor,
 } from "./lecturers";
 import { mapRpcError } from "./rpc-errors";
 
@@ -34,6 +36,13 @@ export async function searchLecturers(input: unknown): Promise<LecturerSearchRes
 
   const { items, hasMore } = pageResults(rows, LECTURER_PAGE_SIZE);
   return { ok: true, lecturers: items, hasMore, page: parsed.data.page };
+}
+
+/** The signed-in, approved student's level advisor (visibility only; null when none is appointed). */
+export async function getMyLevelAdvisor(): Promise<LevelAdvisor | null> {
+  await requireApprovedStudent();
+  const { data, error } = await (await createClient()).rpc("my_level_advisor");
+  return error ? null : parseLevelAdvisor(data);
 }
 
 // ---------------------------------------------------------------------------------------------

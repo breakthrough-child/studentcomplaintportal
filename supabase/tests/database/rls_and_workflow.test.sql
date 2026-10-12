@@ -1280,5 +1280,113 @@ select tap_lite.throws($$select 1 from public.courses$$, '42501', 'R29 signed-ou
 select tap_lite.as_user(tap_lite.id('admin1'));
 select tap_lite.rows_are($$select 1 from public.lecturer_courses$$, 3, 'R30 administrators can see course assignments (lecTarget: MTH 201, ENG 210; lecCS: MTH 201)');
 
+-- ======================= S. LEVEL ADVISORS (migration 0015) ====================
+select tap_lite.as_postgres();
+create temp table s_counts as
+  select (select count(*) from public.complaint_access) as access_rows,
+         (select count(*) from public.lecturer_assignments) as assignment_rows;
+grant select on s_counts to authenticated;
+
+select tap_lite.as_user(tap_lite.id('admin1'));
+select tap_lite.lives($$insert into public.level_advisors (department_id, level_id, lecturer_profile_id)
+  values (tap_lite.id('D_TCS'), tap_lite.id('L200'), tap_lite.id('lecCS'))$$, 'S1 an administrator appoints a level advisor');
+select tap_lite.throws($$insert into public.level_advisors (department_id, level_id, lecturer_profile_id)
+  values (tap_lite.id('D_TCS'), tap_lite.id('L200'), tap_lite.id('lecTarget'))$$, '23505', 'S2 there is only one advisor per department and level');
+select tap_lite.throws($$insert into public.level_advisors (department_id, level_id, lecturer_profile_id)
+  values (tap_lite.id('D_TENG'), tap_lite.id('L300'), tap_lite.id('autoSelf'))$$, '22023', 'S3 a pending lecturer cannot be a level advisor');
+select tap_lite.throws($$insert into public.level_advisors (department_id, level_id, lecturer_profile_id)
+  values (tap_lite.id('D_TENG'), tap_lite.id('L300'), tap_lite.id('studA'))$$, '22023', 'S4 a student cannot be a level advisor');
+select tap_lite.throws($$insert into public.level_advisors (department_id, level_id, lecturer_profile_id)
+  values (tap_lite.id('D_CLOSED'), tap_lite.id('L300'), tap_lite.id('lecCS'))$$, '22023', 'S5 the department must be active');
+select tap_lite.ok((select assigned_by = tap_lite.id('admin1') from public.level_advisors where department_id = tap_lite.id('D_TCS') and level_id = tap_lite.id('L200')),
+  'S6 the appointing administrator is recorded');
+select tap_lite.ok(exists (select 1 from public.audit_logs where entity_type = 'level_advisors'), 'S7 appointments are audit-logged');
+select tap_lite.as_postgres();
+select tap_lite.ok((select access_rows = (select count(*) from public.complaint_access)
+                       and assignment_rows = (select count(*) from public.lecturer_assignments) from s_counts),
+  'S8 being a level advisor grants no complaint access and no assignment (visibility only)');
+
+select tap_lite.as_user(tap_lite.id('lecCS'));
+select tap_lite.throws($$insert into public.level_advisors (department_id, level_id, lecturer_profile_id)
+  values (tap_lite.id('D_TMTH'), tap_lite.id('L100'), tap_lite.id('lecCS'))$$, '42501', 'S9 lecturers cannot appoint themselves');
+select tap_lite.as_user(tap_lite.id('studA'));
+select tap_lite.rows_are($$delete from public.level_advisors returning 1$$, 0, 'S10 students cannot change advisors (nothing is deleted)');
+select tap_lite.ok((select profile_id = tap_lite.id('lecCS') and advises = 'TCS · 200 Level' from public.my_level_advisor()),
+  'S11 a student sees the advisor for their department and level');
+select tap_lite.ok((select 'TCS · 200 Level' = any(advises) from public.search_lecturers(null, tap_lite.id('D_TCS'), tap_lite.id('L200')) where profile_id = tap_lite.id('lecCS')),
+  'S12 lecturer search shows which levels a lecturer advises');
+select tap_lite.as_user(tap_lite.id('studB'));
+select tap_lite.rows_are($$select 1 from public.my_level_advisor()$$, 0, 'S13 a student whose level has no advisor sees none');
+select tap_lite.as_user(tap_lite.id('regStud2'));
+select tap_lite.rows_are($$select 1 from public.my_level_advisor()$$, 0, 'S14 a student who is not approved sees no advisor');
+select tap_lite.as_postgres();
+update public.staff_details set accepts_complaints = false where profile_id = tap_lite.id('lecCS');
+select tap_lite.as_user(tap_lite.id('studA'));
+select tap_lite.rows_are($$select 1 from public.my_level_advisor()$$, 0, 'S15 an advisor who is not accepting complaints is not offered');
+select tap_lite.as_postgres();
+update public.staff_details set accepts_complaints = true where profile_id = tap_lite.id('lecCS');
+
+-- ======================= T. E-MAIL NOTIFICATIONS (migration 0015) ===============
+select tap_lite.as_postgres();
+update public.app_settings set value = '1000'::jsonb where key = 'complaints_per_hour';
+delete from public.notification_outbox;
+select tap_lite.as_user(tap_lite.id('studA'));
+insert into tap_lite.fx select 'tPlain', new_complaint_id from public.submit_complaint(
+  'Notification test complaint', 'A complaint used to test lecturer e-mail notifications.',
+  tap_lite.id('catAcad'), tap_lite.id('lecCS'));
+insert into tap_lite.fx select 'tSens', new_complaint_id from public.submit_complaint(
+  'Sensitive notification test', 'A sensitive complaint used to test triage notifications.',
+  tap_lite.id('catHarass'), tap_lite.id('lecTarget'));
+select tap_lite.as_postgres();
+select tap_lite.ok(exists (select 1 from public.notification_outbox where kind = 'complaint_received'
+                            and complaint_id = tap_lite.id('tPlain') and recipient_profile_id = tap_lite.id('lecCS')),
+  'T1 a new complaint queues an e-mail for the lecturer it is addressed to');
+select tap_lite.ok(exists (select 1 from public.notification_outbox where kind = 'triage_needed'
+                            and complaint_id = tap_lite.id('tSens') and recipient_profile_id = tap_lite.id('lecMain')),
+  'T2 a sensitive complaint queues a triage e-mail for main lecturers who can triage it');
+select tap_lite.rows_are($$select 1 from public.notification_outbox where complaint_id = tap_lite.id('tSens') and recipient_profile_id = tap_lite.id('lecTarget')$$, 0,
+  'T3 ... but not for the chosen lecturer, who has no access until it is released');
+select tap_lite.as_user(tap_lite.id('lecMain'));
+select public.assign_complaint(tap_lite.id('tSens'), tap_lite.id('lecTarget'));
+select tap_lite.as_postgres();
+select tap_lite.ok(exists (select 1 from public.notification_outbox where kind = 'complaint_received'
+                            and complaint_id = tap_lite.id('tSens') and recipient_profile_id = tap_lite.id('lecTarget')),
+  'T4 releasing / assigning a complaint queues an e-mail for that lecturer');
+
+select tap_lite.as_user(tap_lite.id('studA'));
+select tap_lite.throws($$select 1 from public.notification_outbox$$, '42501', 'T5 users cannot read the outbox');
+select tap_lite.throws($$select * from public.claim_notifications()$$, '42501', 'T6 users cannot claim notifications');
+select tap_lite.as_user(tap_lite.id('lecTarget'));
+select tap_lite.throws($$select public.complete_notification(gen_random_uuid(), true)$$, '42501', 'T7 users cannot mark notifications as sent');
+select tap_lite.throws($$insert into public.notification_outbox (kind, complaint_id, recipient_profile_id) values ('complaint_received', tap_lite.id('tPlain'), tap_lite.id('lecCS'))$$, '42501',
+  'T8 users cannot write to the outbox');
+
+-- lecTarget switches e-mails off (own setting).
+select tap_lite.as_user(tap_lite.id('lecTarget'));
+select tap_lite.rows_are($$update public.staff_details set email_notifications = false where profile_id = tap_lite.id('lecTarget') returning 1$$, 1,
+  'T9 a lecturer can turn e-mail notifications off');
+
+select tap_lite.as_postgres();
+set local role service_role;
+create temp table t_claim as select * from public.claim_notifications(50);
+reset role;
+select tap_lite.ok((select count(*) from t_claim where recipient_email = 'leccs@test.example' and reference_number like 'CMP-%') = 1,
+  'T10 the sender gets the recipient address and the complaint reference');
+select tap_lite.rows_are($$select 1 from t_claim where recipient_email = 'lectarget@test.example'$$, 0, 'T11 an opted-out lecturer is not e-mailed ...');
+select tap_lite.ok(exists (select 1 from public.notification_outbox where recipient_profile_id = tap_lite.id('lecTarget') and skipped_reason is not null),
+  'T12 ... and the row is marked skipped with a reason');
+set local role service_role;
+select tap_lite.is_equal((select count(*) from public.claim_notifications(50)), 0::bigint, 'T13 claimed rows are locked: a second sender gets nothing');
+select public.complete_notification(id, true) from t_claim;
+reset role;
+select tap_lite.is_equal((select count(*) from public.notification_outbox where sent_at is not null), (select count(*) from t_claim),
+  'T14 completed notifications are marked sent');
+select tap_lite.as_postgres();
+update public.notification_outbox set sent_at = null, locked_until = null, attempts = 5 where id = (select id from t_claim limit 1);
+set local role service_role;
+select tap_lite.rows_are($$select 1 from public.claim_notifications(50) where id = (select id from t_claim limit 1)$$, 0,
+  'T15 a notification is given up after 5 failed attempts');
+reset role;
+
 select * from tap_lite.finish();
 rollback;

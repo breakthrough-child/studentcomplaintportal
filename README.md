@@ -23,7 +23,7 @@ The original specification is preserved verbatim in [`docs/SPECIFICATION.md`](do
 * Authorisation uses `auth.getUser()` (never `getSession()`), re-checked in every layout, page, Server Action and route handler. The role layouts only choose which area a user may enter; RLS decides rows.
 * History, events and audit logs are append-only. Audit rows omit names, emails and registration numbers.
 * **Self-registration never grants access by itself.** New student and lecturer accounts start `pending`; the database (not just the UI) withholds every protected capability until an administrator approves them (see [Registration and approval](#registration-and-approval)). Main-lecturer and administrator roles can never be self-assigned.
-* The **service-role key is used in exactly one place**: sending invitation e-mails (`src/lib/admin/invite.ts` via `src/lib/supabase/admin.ts`), after an admin check. It is never imported by client code (enforced by `npm run check:boundaries`).
+* The **service-role key is used in exactly two places**: sending invitation e-mails (`src/lib/admin/invite.ts`), after an admin check, and delivering queued notification e-mails (`src/lib/notifications/send.ts`, which only calls two service-role-only functions). It is never imported by client code (enforced by `npm run check:boundaries`).
 * Profile pictures live in a separate **private** bucket (`avatars`), are re-encoded on the server, and are shown through short-lived signed URLs.
 * Attachments live in a **private** bucket. Uploads and downloads use the signed-in user's own session, so Storage policies decide access; there are no public URLs.
 * Security headers (HSTS, nosniff, frame deny, referrer and permissions policy) are set in `next.config.ts`. There is no Content-Security-Policy yet.
@@ -76,6 +76,7 @@ Apply, in order, the files in `supabase/migrations/`:
 20261010000012_no_email_confirmation.sql (sign-up without a confirmation link; admin overview counts)
 20261010000013_registration_scope.sql (level / department chosen at sign-up; public registration_options())
 20261010000014_courses.sql (course catalogue, lecturers' courses, search lecturers by course)
+20261010000015_level_advisors_notifications.sql (level advisors; e-mail notification outbox)
 ```
 
 * Supabase CLI: `supabase link --project-ref <ref>` then `supabase db push`.
@@ -195,6 +196,23 @@ Self-registered lecturers always get the ordinary lecturer role. An administrato
 * **Students** find lecturers by course: the lecturer search box on the new-complaint form matches the lecturer's name **or** a course code/title, and each result shows the course codes that lecturer takes. The department and level filters also match a lecturer's courses. Students cannot read the lecturer–course table directly; they only see it through the search.
 * Taking and dropping courses and catalogue changes are recorded in the audit log.
 
+## Level advisors
+
+* Administrators appoint **one lecturer per department and level** at `/admin/advisors` (for example "CSC · 400 Level"); choosing a pair that already has an advisor replaces them. A lecturer can advise several levels. Only active, approved lecturers can be appointed. Appointments are audit-logged.
+* **Visibility only**: students at that level see "Your level advisor" on their dashboard and a **Send to my level advisor** button on the new-complaint form; lecturer search results show "Level advisor: …". Being an advisor gives **no** access to other complaints: the advisor sees a complaint only when it is sent or assigned to them, like any lecturer.
+* Lecturers see the levels they advise under Settings.
+
+## E-mail notifications for lecturers
+
+* A lecturer is e-mailed when a complaint is **sent to them** or **assigned to them** later. For a **sensitive** complaint, the main lecturers who can triage it (institution-wide scope) are e-mailed first; the chosen lecturer is e-mailed when it is released to them.
+* E-mails contain **only the reference number and a sign-in link**: never the complaint title, text, category, files or the student's identity. Lecturers can switch them off under Settings.
+* How it works: database triggers write each notification to `notification_outbox` in the same transaction as the complaint, so none is lost. Right after the response, the server sends queued e-mails over SMTP; `claim_notifications()` / `complete_notification()` (service role only) prevent double sending, and failures are retried up to 5 times. This is the second deliberate use of the service-role key (`src/lib/notifications/send.ts`, allow-listed in the boundary check and ESLint): lecturers' addresses must not be readable by the student whose request created the complaint.
+* **Configure SMTP** in the server environment (`.env.local` / host settings), see `.env.example`:
+  * Gmail: `SMTP_HOST=smtp.gmail.com`, `SMTP_PORT=465`, `SMTP_USER=<the Gmail address>`, `SMTP_PASSWORD=<a 16-character App Password>` (Google Account → Security → 2-Step Verification → App passwords; your normal password will not work), `SMTP_FROM=Student Complaint Portal <the same Gmail address>`.
+  * School mail server: the host, port (587 with STARTTLS, or 465 with TLS), user and password from Bowen ICT.
+  * Without `SMTP_HOST`, e-mails simply stay queued and go out once SMTP is configured.
+* Optional retries: set `CRON_SECRET` (24+ characters) and have a scheduler call `GET /api/notifications/send` with `Authorization: Bearer <CRON_SECRET>` (for example every 10 minutes) to retry anything that failed during an SMTP outage. Without `CRON_SECRET` the endpoint returns 404.
+
 ## Profile pictures
 
 Students (on `/student/profile`) and lecturers / main lecturers (on `/lecturer/settings`) can upload, replace or remove a profile picture. It appears there and in the header. Without one, an initials avatar is shown.
@@ -218,9 +236,9 @@ Students (on `/student/profile`) and lecturers / main lecturers (on `/lecturer/s
 
 ```bash
 npm run typecheck        # tsc --noEmit
-npm run test:unit        # 295 unit tests (node:test via tsx)
+npm run test:unit        # 301 unit tests (node:test via tsx)
 npm run check:boundaries # server-only/secret/invisible-character static checks
-npm run test:db          # 389 SQL tests on local PostgreSQL 16 + Supabase stand-ins
+npm run test:db          # 419 SQL tests on local PostgreSQL 16 + Supabase stand-ins
 npm run test:db:supabase # same suite on a real local Supabase stack (needs Docker + CLI)
 npm run lint             # ESLint
 ```
@@ -240,8 +258,8 @@ Unit tests cover validation schemas, routing/view parsers, error mapping, naviga
 
 | Area | Implemented | Verified how |
 | --- | --- | --- |
-| Database (schema, RLS, RPCs, storage policies, reporting, registration/approval, avatars) | Yes (14 migrations) | 389 SQL tests passed on PostgreSQL 16 with Supabase stand-ins. **Not** run on real Supabase. |
-| Pure logic (validation, parsers, policies, CSV, error mapping, nav, registration, avatars) | Yes | Strict `tsc` clean and 295 unit tests passed. |
+| Database (schema, RLS, RPCs, storage policies, reporting, registration/approval, avatars) | Yes (15 migrations) | 419 SQL tests passed on PostgreSQL 16 with Supabase stand-ins. **Not** run on real Supabase. |
+| Pure logic (validation, parsers, policies, CSV, error mapping, nav, registration, avatars) | Yes | Strict `tsc` clean and 301 unit tests passed. |
 | Next.js pages, layouts, Server Actions, route handlers, components | Yes (student, lecturer, main-lecturer, admin, attachments, auth, registration, avatars) | `tsc`, ESLint (0 errors) and `next build` pass. Not opened in a browser. |
 | Supabase Auth/Storage/SMTP integration, invitations, self-registration sign-up, avatar uploads | Yes | **Not run** against a project. Needs the migrations applied, Auth sign-ups enabled and the e-mail templates (section 5). |
 | Browser/E2E tests, accessibility audit | Not run | |

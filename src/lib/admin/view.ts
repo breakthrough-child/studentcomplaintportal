@@ -108,4 +108,4 @@ export function auditSummary(metadata: unknown, max = 400): string {
   try { s = JSON.stringify(metadata ?? {}) ?? "{}"; } catch { s = "{}"; }
   return s.length > max ? `${s.slice(0, max)}…` : s;
 }
-export const AUDIT_ENTITY_FILTERS = ["profiles", "students", "departments", "academic_levels", "complaint_categories", "lecturer_assignments", "staff_invitations", "staff_details", "app_settings", "complaints", "courses", "lecturer_courses"] as const;
+export const AUDIT_ENTITY_FILTERS = ["profiles", "students", "departments", "academic_levels", "complaint_categories", "lecturer_assignments", "staff_invitations", "staff_details", "app_settings", "complaints", "courses", "lecturer_courses", "level_advisors"] as const;

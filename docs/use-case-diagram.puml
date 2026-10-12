@@ -1,0 +1,119 @@
+@startuml
+' Use case diagram: Student Complaint Management System (Bowen University)
+' Render with PlantUML (https://plantuml.com), e.g. the VS Code PlantUML extension or
+'   java -jar plantuml.jar docs/use-case-diagram.puml
+left to right direction
+skinparam packageStyle rectangle
+skinparam shadowing false
+skinparam actorStyle awesome
+skinparam usecase {
+  BackgroundColor #FFF9E6
+  BorderColor #252569
+}
+skinparam rectangle {
+  BorderColor #252569
+}
+
+actor "Visitor" as Visitor
+actor "Student" as Student
+actor "Lecturer" as Lecturer
+actor "Main lecturer" as Main
+actor "Administrator" as Admin
+
+Main --|> Lecturer
+
+rectangle "Student Complaint Portal" {
+  ' --- visitors (not signed in)
+  usecase "Register account\n(student or lecturer)" as UC_Register
+  usecase "Pick level and department" as UC_Scope
+  usecase "Sign in" as UC_SignIn
+  usecase "Reset password" as UC_Reset
+
+  ' --- students
+  usecase "View approval status" as UC_Status
+  usecase "Submit complaint" as UC_Submit
+  usecase "Find lecturer by name\nor course" as UC_FindLecturer
+  usecase "Attach evidence" as UC_Attach
+  usecase "Track my complaints" as UC_Track
+  usecase "Reply to complaint" as UC_Reply
+  usecase "Reopen resolved complaint" as UC_Reopen
+  usecase "Manage profile picture" as UC_Avatar
+
+  ' --- lecturers
+  usecase "View complaint queue" as UC_Queue
+  usecase "Open a complaint" as UC_Open
+  usecase "Reply to student" as UC_StaffReply
+  usecase "Change complaint status" as UC_ChangeStatus
+  usecase "Escalate complaint" as UC_Escalate
+  usecase "Manage my courses\n(add / drop)" as UC_MyCourses
+  usecase "Add new course\nto catalogue" as UC_NewCourse
+  usecase "Update settings" as UC_Settings
+
+  ' --- main lecturers
+  usecase "Triage sensitive complaints" as UC_Triage
+  usecase "Assign or revoke access" as UC_Assign
+  usecase "View reports" as UC_Reports
+
+  ' --- administrators
+  usecase "View admin dashboard" as UC_Dash
+  usecase "Review registrations\n(approve / reject)" as UC_Review
+  usecase "Manage students" as UC_Students
+  usecase "Import students (CSV)" as UC_Import
+  usecase "Manage lecturers and staff" as UC_Staff
+  usecase "Invite staff" as UC_Invite
+  usecase "Manage departments\nand levels" as UC_Academic
+  usecase "Manage course catalogue" as UC_Courses
+  usecase "Manage complaint categories" as UC_Categories
+  usecase "Manage lecturer scopes" as UC_Scopes
+  usecase "Configure settings" as UC_Config
+  usecase "View audit logs" as UC_Audit
+}
+
+Visitor --> UC_Register
+Visitor --> UC_SignIn
+Visitor --> UC_Reset
+UC_Register ..> UC_Scope : <<include>>
+
+Student --> UC_Status
+Student --> UC_Submit
+Student --> UC_Track
+Student --> UC_Reply
+Student --> UC_Reopen
+Student --> UC_Avatar
+UC_Submit ..> UC_FindLecturer : <<include>>
+UC_Attach ..> UC_Submit : <<extend>>
+UC_Attach ..> UC_Reply : <<extend>>
+
+Lecturer --> UC_Queue
+Lecturer --> UC_Open
+Lecturer --> UC_StaffReply
+Lecturer --> UC_ChangeStatus
+Lecturer --> UC_Escalate
+Lecturer --> UC_MyCourses
+Lecturer --> UC_Settings
+Lecturer --> UC_Avatar
+UC_Attach ..> UC_StaffReply : <<extend>>
+UC_NewCourse ..> UC_MyCourses : <<extend>>
+
+Main --> UC_Triage
+Main --> UC_Assign
+Main --> UC_Reports
+
+Admin --> UC_Dash
+Admin --> UC_Review
+Admin --> UC_Students
+Admin --> UC_Staff
+Admin --> UC_Academic
+Admin --> UC_Courses
+Admin --> UC_Categories
+Admin --> UC_Scopes
+Admin --> UC_Config
+Admin --> UC_Audit
+UC_Import ..> UC_Students : <<extend>>
+UC_Invite ..> UC_Staff : <<extend>>
+
+note right of UC_Review
+  New students and lecturers stay pending
+  (no access to complaints) until approved.
+end note
+@enduml

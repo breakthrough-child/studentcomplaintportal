@@ -6,6 +6,7 @@ import type { ReplyState } from "@/lib/complaints/reply";
 import { complaintIdSchema } from "@/lib/complaints/student-view";
 import type { ActionState } from "@/lib/staff/actions";
 import { assignComplaint, changeStatus, escalate, revokeAccess, staffReply } from "@/lib/staff/data";
+import { deliverNotificationsSoon } from "@/lib/notifications/send";
 
 // Each action re-checks the role inside lib/staff/data.ts (requireStaff / requireMainLecturer);
 // the database functions then re-check complaint access. Nothing here trusts the page.
@@ -31,7 +32,7 @@ export async function escalateAction(_p: ActionState, formData: FormData): Promi
 }
 export async function assignAction(_p: ActionState, formData: FormData): Promise<ActionState> {
   const r = await assignComplaint(formData);
-  if (r.ok) refresh(formData);
+  if (r.ok) { refresh(formData); deliverNotificationsSoon(); } // the newly assigned lecturer is e-mailed
   return r;
 }
 export async function revokeAction(_p: ActionState, formData: FormData): Promise<ActionState> {

@@ -231,3 +231,11 @@ test("admin overview counts: numbers by metric, missing = 0, malformed fails clo
   assert.equal(parseOverview([{ metric: "a", total: "lots" }]), null);
   assert.equal(parseOverview(null), null);
 });
+
+import { parseAdvisor, parseAdvisorRemove } from "../../src/lib/admin/schemas";
+test("level advisors: department, level and lecturer are required UUIDs; nothing else accepted", () => {
+  assert.ok(parseAdvisor(src({ departmentId: U1, levelId: U2, lecturerId: U1 })).success);
+  assert.equal(parseAdvisor(src({ departmentId: U1, levelId: U2 })).success, false);
+  assert.equal(parseAdvisor(src({ departmentId: "cs", levelId: U2, lecturerId: U1 })).success, false);
+  assert.ok(parseAdvisorRemove(src({ departmentId: U1, levelId: U2 })).success);
+});
