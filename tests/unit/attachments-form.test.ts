@@ -19,7 +19,8 @@ test("an untouched file input (one empty, unnamed file) means no attachments", (
   assert.equal(selectedFiles([new File([], "")]).length, 0);
   // Next.js Server Actions turn an untouched file input into an empty file named "undefined".
   assert.equal(selectedFiles([new File([], "undefined", { type: "application/octet-stream" })]).length, 0);
-  assert.equal(selectedFiles([new File([], "empty.pdf")]).length, 1, "a chosen empty file is still validated (and rejected)");
+  // Other runtimes may name the placeholder differently; any zero-byte entry means "no file chosen".
+  for (const name of ["blob", "null", "file", "empty.pdf"]) assert.equal(selectedFiles([new File([], name)]).length, 0, name);
   assert.equal(selectedFiles(["text", null, 5]).length, 0);
   assert.equal(selectedFiles([file(png(), "a.png", "image/png")]).length, 1);
 });
