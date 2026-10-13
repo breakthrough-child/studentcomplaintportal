@@ -1,7 +1,7 @@
 // UNVERIFIED: depends on next, react and @supabase/ssr, which could not be installed when this was written.
 import "server-only";
 import { createClient } from "@/lib/supabase/server";
-import { requireApprovedStudent } from "@/lib/auth/guards";
+import { requireApprovedStudent, requireRole } from "@/lib/auth/guards";
 import {
   LECTURER_PAGE_SIZE,
   buildSearchRpcArgs,
@@ -38,9 +38,13 @@ export async function searchLecturers(input: unknown): Promise<LecturerSearchRes
   return { ok: true, lecturers: items, hasMore, page: parsed.data.page };
 }
 
-/** The signed-in, approved student's level advisor (visibility only; null when none is appointed). */
+/**
+ * The signed-in student's level advisor (visibility only). null when none is appointed for their department
+ * and level, or when the student is not approved yet: my_level_advisor() itself returns nothing for
+ * unapproved accounts, so this needs only the student role (pending students can call it from their profile).
+ */
 export async function getMyLevelAdvisor(): Promise<LevelAdvisor | null> {
-  await requireApprovedStudent();
+  await requireRole(["student"]);
   const { data, error } = await (await createClient()).rpc("my_level_advisor");
   return error ? null : parseLevelAdvisor(data);
 }

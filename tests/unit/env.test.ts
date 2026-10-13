@@ -66,3 +66,15 @@ test("secrets exposed through NEXT_PUBLIC_ names are rejected", () => {
   assert.throws(() => assertNoPublicSecrets({ NEXT_PUBLIC_STRIPE_SECRET: "x" }), EnvError);
   assert.throws(() => parseServerEnv({ SUPABASE_SERVICE_ROLE_KEY: KEY_B, NEXT_PUBLIC_SERVICE_ROLE: KEY_B }, KEY_A), EnvError);
 });
+
+import { resolveSiteUrl } from "../../src/lib/env/schema";
+test("site URL: explicit value wins; on Vercel a missing or localhost value falls back to the production domain", () => {
+  assert.equal(resolveSiteUrl({}), undefined, "locally: parsePublicEnv then defaults to http://localhost:3000");
+  assert.equal(resolveSiteUrl({ NEXT_PUBLIC_SITE_URL: "http://localhost:3000" }), "http://localhost:3000");
+  const vercel = { VERCEL: "1", VERCEL_ENV: "production", VERCEL_PROJECT_PRODUCTION_URL: "studentcomplaintportal.vercel.app", VERCEL_URL: "studentcomplaintportal-abc123.vercel.app" };
+  assert.equal(resolveSiteUrl(vercel), "https://studentcomplaintportal.vercel.app");
+  assert.equal(resolveSiteUrl({ ...vercel, NEXT_PUBLIC_SITE_URL: "http://localhost:3000" }), "https://studentcomplaintportal.vercel.app");
+  assert.equal(resolveSiteUrl({ ...vercel, NEXT_PUBLIC_SITE_URL: "https://complaints.bowen.edu.ng" }), "https://complaints.bowen.edu.ng");
+  assert.equal(resolveSiteUrl({ ...vercel, VERCEL_ENV: "preview" }), "https://studentcomplaintportal-abc123.vercel.app", "previews link to themselves");
+  assert.equal(resolveSiteUrl({ VERCEL: "1", VERCEL_URL: "evil.com/path?x" }), "https://evil.com", "only a host is ever used");
+});

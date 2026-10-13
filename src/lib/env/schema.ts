@@ -123,3 +123,19 @@ export function parseCronSecret(raw: RawEnv): string | null {
   const s = raw.CRON_SECRET?.trim();
   return s && s.length >= 24 ? s : null;
 }
+
+/**
+ * The site's public origin, used in e-mail links (password reset, invitations, notifications).
+ * NEXT_PUBLIC_SITE_URL wins when it is a real address. On Vercel, a missing value or a leftover localhost
+ * value falls back to the project's production domain (VERCEL_PROJECT_PRODUCTION_URL, or this
+ * deployment's VERCEL_URL), so e-mails from the live site never point at localhost. Locally it stays
+ * http://localhost:3000.
+ */
+export function resolveSiteUrl(raw: RawEnv): string | undefined {
+  const explicit = raw.NEXT_PUBLIC_SITE_URL?.trim() || undefined;
+  if (raw.VERCEL !== "1") return explicit;
+  if (explicit && !LOCAL_HTTP.test(explicit)) return explicit;
+  const host = (raw.VERCEL_ENV === "production" ? raw.VERCEL_PROJECT_PRODUCTION_URL : undefined) || raw.VERCEL_URL;
+  const clean = host?.trim().replace(/^https?:\/\//, "").replace(/\/.*$/, "");
+  return clean && /^[a-z0-9.-]+(:\d{1,5})?$/i.test(clean) ? `https://${clean}` : explicit;
+}

@@ -5,12 +5,15 @@ import { getSessionUser, requireRole } from "@/lib/auth/guards";
 import { studentAccess } from "@/lib/student/onboarding";
 import { getMyPersonalEmail, getStudentContext } from "@/lib/student/data";
 import { ProfilePicture } from "@/components/profile-picture";
+import { LevelAdvisorCard } from "@/components/level-advisor-card";
+import { getMyLevelAdvisor } from "@/lib/complaints/data";
 
 export const metadata: Metadata = { title: "Profile" };
 
 export default async function StudentProfile() {
   const profile = await requireRole(["student"]);
-  const [ctx, personalEmail, user] = await Promise.all([getStudentContext(), getMyPersonalEmail(profile.id), getSessionUser()]);
+  const [ctx, personalEmail, user, advisor] = await Promise.all([getStudentContext(), getMyPersonalEmail(profile.id), getSessionUser(), getMyLevelAdvisor()]);
+  const levelLabel = ctx.ok && ctx.departmentName && ctx.levelName ? `${ctx.departmentName} · ${ctx.levelName}` : null;
   const record = ctx.ok ? ctx.record : null;
   const access = ctx.ok ? studentAccess(record) : null;
 
@@ -32,6 +35,9 @@ export default async function StudentProfile() {
           </>
         ) : null}
       </dl>
+      {record && (record.approval_status === "approved" || record.approval_status === "pending") ? (
+        <LevelAdvisorCard advisor={advisor} approved={record.approval_status === "approved"} levelLabel={levelLabel} compact />
+      ) : null}
       {access ? <p className="rounded-md bg-slate-50 p-3 text-sm">{access.message}{access.state === "unlinked" ? <> <Link className="underline" href="/student/dashboard">Link it from the dashboard.</Link></> : null}</p> : null}
       <p className="text-sm text-slate-600">Your name, level and department are managed by the university administrator. To change your password, <Link className="underline" href="/forgot-password">request a reset link</Link>.</p>
     </main>
