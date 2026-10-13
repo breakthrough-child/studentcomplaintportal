@@ -68,3 +68,15 @@ test("isTrustedPost rejects cross-site and missing-origin requests", () => {
   assert.equal(isTrustedPost({ origin: null, secFetchSite: null }, allowed), false);
   assert.equal(isTrustedPost({ origin: "https://portal.example.edu", secFetchSite: "cross-site" }, []), false);
 });
+
+import { strayAuthCodeRedirect } from "../../src/lib/auth/redirect";
+test("a Supabase code that landed on the site root is finished through the callback", () => {
+  const code = "85acc9f2-8d3c-4728-bc09-df17ae96fdbe";
+  assert.deepEqual(strayAuthCodeRedirect("/", new URLSearchParams({ code })), {
+    pathname: "/auth/callback",
+    search: `?code=${code}&next=%2Freset-password`,
+  });
+  assert.equal(strayAuthCodeRedirect("/", new URLSearchParams()), null);
+  assert.equal(strayAuthCodeRedirect("/", new URLSearchParams({ code: "<script>" })), null, "only a well-formed code");
+  assert.equal(strayAuthCodeRedirect("/login", new URLSearchParams({ code })), null, "only the root");
+});

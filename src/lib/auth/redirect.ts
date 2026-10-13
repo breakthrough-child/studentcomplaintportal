@@ -63,3 +63,18 @@ export function isTrustedPost(info: PostRequestInfo, allowedOrigins: readonly st
     return false;
   }
 }
+
+const AUTH_CODE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * A Supabase PKCE code that landed on the site root ("/?code=<uuid>"): Supabase falls back to its Site URL
+ * when the requested return address is not allow-listed. With e-mail confirmation off and invitations using
+ * token links, the only flow that produces such a link is password recovery, so it continues to the
+ * "choose a new password" page. The code itself is only exchanged (and checked) by /auth/callback.
+ */
+export function strayAuthCodeRedirect(pathname: string, params: URLSearchParams): { pathname: string; search: string } | null {
+  if (pathname !== "/") return null;
+  const code = params.get("code");
+  if (!code || !AUTH_CODE.test(code)) return null;
+  return { pathname: "/auth/callback", search: `?code=${encodeURIComponent(code)}&next=${encodeURIComponent("/reset-password")}` };
+}
